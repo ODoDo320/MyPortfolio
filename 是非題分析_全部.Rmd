@@ -1,0 +1,2268 @@
+---
+title: "是非題分析_全部"
+author: "R11250002 李泓哲"
+date: "`r Sys.Date()`"
+output:
+  html_document:
+    code_folding: show
+    toc: true
+    theme: united
+---
+
+```{r setup, include=FALSE}
+#knitr::opts_chunk$set(echo = F)
+library(readxl)
+library(plyr)
+library(dplyr)
+library(tidyr)
+library(ggplot2)
+library(stringr)
+library(knitr)
+library(kableExtra)
+library(ggrepel)
+library(gridExtra)
+library(DT)
+library(openxlsx)
+library(sjstats)
+library(FactoMineR)
+library(factoextra)
+library(psych)
+library(lavaan)
+library(semPlot)
+library(MASS) 
+library(FSA)
+
+#install.packages("semPlot")
+```
+
+# **0. 資料及functions匯入**
+```{r}
+
+Cdat1_yn<-readRDS("./分析用資料/Cdat1_yn")
+Cdat2_yn<-readRDS("./分析用資料/Cdat2_yn")
+
+Cdat1_yn.ju<-readRDS("./分析用資料/Cdat1_yn.ju")
+Cdat2_yn.ju<-readRDS("./分析用資料/Cdat2_yn.ju")
+
+Cdat1_yn.se<-readRDS("./分析用資料/Cdat1_yn.se")
+Cdat2_yn.se<-readRDS("./分析用資料/Cdat2_yn.se")
+
+Cdat1_yn.st<-readRDS("./分析用資料/Cdat1_yn.st")
+Cdat2_yn.st<-readRDS("./分析用資料/Cdat2_yn.st")
+
+# 匯入答案
+ans<-read_xlsx(".\\data_record_和平桃農.xlsx")[1,-c(1:4,35:44,55:67)]
+
+ans1<-ans[1:30]
+
+ans0<-str_replace_all(names(ans),"是非","")
+
+Cdat1_yn.st.mat<-sapply(names(ans), function(i) (Cdat1_yn.st[,i]%>%factor(levels=c("正確","錯誤"),labels=c(1,0))%>%as.numeric())-1)
+
+Cdat2_yn.st.mat<-sapply(names(ans), function(i) (Cdat2_yn.st[,i]%>%factor(levels=c("正確","錯誤"),labels=c(1,0))%>%as.numeric())-1)
+
+Cdat_yn.st.mat<-rbind(Cdat1_yn.st.mat, Cdat2_yn.st.mat)
+
+
+## 匯入早餐學習單資料
+eat<-read_xlsx(".\\早餐學習單_兩批彙整.xlsx",skip=1)%>%as.data.frame()
+
+typee<-readRDS("./分析用資料/typee")
+typee$sense2<-0
+typee$sense2[c(6,7,9,12,15,18:20,23,26:28)]<-1
+
+## 匯入functions
+source("./functions_是非題.R")
+
+```
+
+# **1. 高低分組得分分析**
+
+## **1-1 前/後測生是非得分、總得分的敘述統計**
+```{r}
+out<-matrix(NA,5,4)
+rownames(out)<-c("最大值","第3四分位數(上界)","中位數","第1四分位數(下界)","最小值")
+colnames(out)<-rep(c("前測","後測"),2)
+out[,1]<-fivenum(Cdat1_yn$生是非得分)%>%rev()
+out[,2]<-fivenum(Cdat2_yn$生是非得分)%>%rev()
+out[,3]<-fivenum(Cdat1_yn$總得分)%>%rev()
+out[,4]<-fivenum(Cdat2_yn$總得分)%>%rev()
+
+out%>%kable("html",escape = F,booktabs = TRUE, caption="1-1 前/後測生是非得分、總得分的敘述統計")%>%   
+  kable_styling(c("striped", "bordered"))%>%
+  add_header_above(c(" " = 1, "生是非得分" = 2, "總得分" = 2))%>%
+  column_spec(1, bold = T)
+
+plot(Cdat1_yn$生是非得分, Cdat1_yn$技是非得分, pch=19)
+plot(Cdat2_yn$生是非得分, Cdat2_yn$技是非得分, pch=19)
+plot(Cdat1_yn.ju$生是非得分, Cdat1_yn.ju$技是非得分, pch=19,col=2)
+plot(Cdat2_yn.ju$生是非得分, Cdat2_yn.ju$技是非得分, pch=19,col=2)
+plot(Cdat1_yn.se$生是非得分, Cdat1_yn.se$技是非得分, pch=19,col=3)
+plot(Cdat2_yn.se$生是非得分, Cdat2_yn.se$技是非得分, pch=19,col=3)
+
+out<-data.frame(matrix(NA, 6, 4))
+out[,1]<-rep(c("全部人","國中生","高中生"),each=2)
+out[,2]<-rep(c("前測","後測"), 3)
+kk<-c(paste("Cdat1_yn", c("",".ju",".se"),sep=""), paste("Cdat2_yn", c("",".ju",".se"),sep=""))
+for(i in c(1,4,2,5,3,6)){
+  k<-eval(parse(text=kk[i]))
+  out[i,3]<-cor.test(k[["生是非得分"]], k[["技是非得分"]])[["estimate"]]%>%round(digits=4)
+  out[i,4]<-ifelse(cor.test(k[["生是非得分"]], k[["技是非得分"]])[["p.value"]]<0.0001, "<0.0001",cor.test(k[["生是非得分"]], k[["技是非得分"]])[["p.value"]]%>%round(digits=4))
+  
+}
+
+
+
+cor.test(Cdat1_yn$生是非得分, Cdat1_yn$技是非得分);cor.test(Cdat2_yn$生是非得分, Cdat2_yn$技是非得分)
+cor.test(Cdat1_yn.ju$生是非得分, Cdat1_yn.ju$技是非得分);cor.test(Cdat2_yn.ju$生是非得分, Cdat2_yn.ju$技是非得分)
+cor.test(Cdat1_yn.se$生是非得分, Cdat1_yn.se$技是非得分);cor.test(Cdat2_yn.se$生是非得分, Cdat2_yn.se$技是非得分)
+```
+
+```{r, fig.height=5, fig.width=8,warning=F}
+Cdat_yn<-rbind(Cdat1_yn, Cdat2_yn)
+Cdat_yn[["前/後測"]]<-rep(c("前測","後測"),each=dim(Cdat1_yn)[1])
+
+Cdat_yn%>%
+  dplyr::select(生是非得分,總得分,`前/後測`) %>%
+  # gather 所有變數，除了 island 之外(要當成獨立一個欄位，做為群組)
+  gather(key = 'variable', value = 'measurements', -`前/後測`)%>%
+  ggplot(mapping = aes(x = variable, y = measurements, col = `前/後測`)) +
+	# 繪製盒鬚圖，使用 position_dodge 調整間距
+    geom_boxplot(position = position_dodge(0.8)) +
+    # 修改 x 軸標籤為 Soil properties
+    labs(x = '項目',y="分數", title="前/後測生是非得分、總得分的盒形圖")+
+    scale_y_continuous(limits=c(0,100),breaks = seq(0,100,10))+
+    theme(legend.position = "top", plot.title = element_text(face="bold",size=16),
+          legend.title = element_text(size=14),
+          legend.text = element_text(size=12),
+          axis.title.x = element_text(face="bold",size=16),
+          axis.title.y = element_text(face="bold",size=16),
+          axis.text.x = element_text(size=12),
+          axis.text.y = element_text(size=12))
+
+```
+
+###** 1-1-1 計算前後測總得分組距**
+```{r}
+cut(Cdat1_yn$總得分,seq(-1,101,10))%>%table()
+cut(Cdat2_yn$總得分,seq(-1,101,10))%>%table()
+
+# 進步幅度組距
+cut(Cdat2_yn$總得分-Cdat1_yn$總得分, c(seq(-80,-1,10),-1,1,seq(9,80,10)))%>%table()
+```
+
+## **1-3 按後測總得分高低分組**
+```{r}
+type<-"後測總得分";num<-0.25
+
+out<-matrix(NA,3,3)
+rownames(out)<-c("高分組","平均組","低分組")
+colnames(out)<-c("分組依據",type,"組內人數")
+
+```
+
+### **1-3-1 分組敘述統計（按後測總得分分組）**
+```{r}
+out[1,1]<-paste(type,"的前",num*100,"%",sep="")
+out[2,1]<-paste(type,"的平均上下",(1-2*num)*100,"%",sep="")
+out[3,1]<-paste(type,"的後",num*100,"%",sep="")
+out[1,2]<-paste(quantile(Cdat2_yn$總得分,1-num),"分(含)以上",sep="")
+out[2,2]<-paste(quantile(Cdat2_yn$總得分,num)+2.5,"~",quantile(Cdat2_yn$總得分,1-num)-2.5,"分",sep="")
+out[3,2]<-paste(quantile(Cdat2_yn$總得分,num),"分(含)以下",sep="")
+gpost.high<-Cdat2_yn$總得分>=quantile(Cdat2_yn$總得分,1-num)
+gpost.low<-Cdat2_yn$總得分<=quantile(Cdat2_yn$總得分,num)
+
+out[1,3]<-length(which(gpost.high));out[3,3]<-length(which(gpost.low));out[2,3]<-dim(Cdat2_yn)[1]-length(which(gpost.high))-length(which(gpost.low))
+
+out%>%kable("html",escape = F,booktabs = TRUE, caption = "1-3-1 分組敘述統計（按後測總得分分組）")%>%   
+  kable_styling(c("striped", "bordered"))%>%
+  column_spec(1, bold = T)
+```
+
+
+
+### **1-3-2 是非題答對率之前後測結果比較（後測低分組vs.後測高分組）**
+```{r, fig.height=5, fig.width=10,warning=F}
+kk<-yn.prepost.lowhigh.table(Cdat1_yn[which(gpost.low),],Cdat2_yn[which(gpost.low),],Cdat1_yn[which(gpost.high),],Cdat2_yn[which(gpost.high),])
+
+colnames(kk)<-c("\u200B","\u200B","平均答對率","標準差","平均答對率","標準差","t統計量","p-value","檢定結果","前測","後測","後測")
+
+kk[,8]<-str_c(kk[,8]%>%round(digits=3),cut(kk[,8], breaks=c(0,0.001,0.01,0.05,1),labels=c("***","**","*","")))
+
+kk%>%kable("html",escape = F,booktabs = TRUE, digits=c(0,0,3,2,3,2,3,3,3,3,3,3),caption="1-3-2 是非題答對率之前後測結果比較（後測低分組n=45 vs.後測高分組n=39）")%>%   
+  kable_styling(c("striped", "bordered"))%>%
+  add_header_above(c(" " = 2, "前測" = 2, "後測" = 2,"前後測成對t檢定" = 3,"鑑別度" = 2, "難度" = 1))%>%
+  column_spec(1, bold = T)%>%
+  collapse_rows(columns=c(1,10:12))%>%
+  group_rows("生是非", 1, 60)%>%
+  group_rows("技是非", 61, 80)
+
+res_low<-yn.prepost.table(Cdat1_yn[which(gpost.low),], Cdat2_yn[which(gpost.low),])
+res_high<-yn.prepost.table(Cdat1_yn[which(gpost.high),], Cdat2_yn[which(gpost.high),])
+res<-rbind(res_low, res_high)
+
+yn.prepost.plot.lowhigh(res, "是非題答對率之前後測結果比較（後測低分組vs.後測高分組）")
+```
+
+### **1-3-3 鑑別度、難度分析（後測低分組vs.後測高分組）**
+```{r, fig.height=5, fig.width=10,warning=F}
+kk<-yn.prepost.lowhigh.table(Cdat1_yn[which(gpost.low),],Cdat2_yn[which(gpost.low),],Cdat1_yn[which(gpost.high),],Cdat2_yn[which(gpost.high),])
+
+yn.prepost.plot.lowhigh.D(kk, "是非題鑑別度之前後測結果比較及難度之呈現（取後測低分組、高分組分析）")
+```
+
+### **1-3-4 全部生是非、知識性質及覺察類是非題彙整表格（後測低分組n=45 vs.後測高分組n=39）**
+```{r}
+kk<-mean_table_all2(Cdat1_yn%>%filter(gpost.low), Cdat2_yn%>%filter(gpost.low),
+               Cdat1_yn%>%filter(gpost.high), Cdat2_yn%>%filter(gpost.high), state=7)
+
+
+kk[[1]]%>%kableExtra::kable("html",escape = T,booktabs = TRUE,digits=c(0,0,3,2,3,2,3,3,3,3,3,3,3,3,3,3,3,3),caption="1-3-4 全部生是非、知識性質及覺察類是非題彙整表格（後測低分組n=45 vs.後測高分組n=39）")%>%
+  kable_styling(c("striped", "bordered"))%>%
+  add_header_above(c(" " = 2, "前測" = 2, "後測" = 2,"前後測成對t檢定" = 3, "高分組-低分組獨立t檢定 (進步量)"=3, "高分組-低分組獨立t檢定 (前測)"=3, "高分組-低分組獨立t檢定 (後測)"=3))%>%
+  column_spec(1, bold = T)%>%
+  kableExtra::collapse_rows(columns = c(1, 10:18))
+
+```
+
+### **1-3-5 全部生是非、知識性質及覺察類是非題盒形圖（後測低分組n=45 vs.後測高分組n=39）**
+```{r, fig.height=5, fig.width=10,warning=F}
+yn.prepost.compare.boxplot(Cdat1_yn%>%filter(gpost.low), Cdat2_yn%>%filter(gpost.low),
+                           Cdat1_yn%>%filter(gpost.high), Cdat2_yn%>%filter(gpost.high),state=7,
+                           title="全部生是非、知識性質及覺察類是非題盒形圖（後測低分組n=45 vs.後測高分組n=39）")
+
+```
+
+### **1-3-6 知識性質生是非前後測答對率（後測低分組n=45 vs.後測高分組n=39）**
+```{r, fig.height=5, fig.width=10,warning=F}
+kk<-yn_life.prepost.compare.table(Cdat1_yn%>%filter(gpost.low),
+                                  Cdat2_yn%>%filter(gpost.low),
+                                  Cdat1_yn%>%filter(gpost.high),
+                                  Cdat2_yn%>%filter(gpost.high),7)%>%
+  arrange(知識性質)%>%dplyr::select(!c("知識性質","生活主題","覺察"))
+
+colnames(kk)<-c("","","平均答對率","標準差","平均答對率","標準差","t統計量","p-value","檢定結果")
+
+kk[,7]<-kk[,7]%>%as.numeric%>%round(digits=3)
+
+kk[,8]<-str_c(kk[,8]%>%as.numeric%>%round(digits=3),cut(kk[,8]%>%as.numeric, breaks=c(0,0.001,0.01,0.05,1),labels=c("***","**","*","")))
+
+kk%>%kable("html",escape = F,booktabs = TRUE, digits=c(0,0,3,2,3,2,3,3,3), caption="1-3-6 知識性質生是非前後測答對率（後測低分組n=45 vs.後測高分組n=39）")%>%   
+  kable_styling(c("striped", "bordered"))%>%
+  add_header_above(c(" " = 2, "前測" = 2, "後測" = 2,"前後測成對t檢定" = 3))%>%
+  column_spec(1, bold = T)%>%
+  collapse_rows(columns = 1)%>%
+  group_rows("知識", 1, 20)%>%
+  group_rows("推論", 21, 50)%>%
+  group_rows("計算", 51, 60)
+
+res_postlow<-yn_life.prepost.table(Cdat1_yn%>%filter(gpost.low),
+                               Cdat2_yn%>%filter(gpost.low))
+res_nopostlow<-yn_life.prepost.table(Cdat1_yn%>%filter(gpost.high),
+                                 Cdat2_yn%>%filter(gpost.high))
+res<-rbind(res_postlow, res_nopostlow)
+
+yn.prepost.compare.plot(res, "知識性質生是非答對率之前後測結果比較（後測低分組n=45 vs.後測高分組n=39）", state=7)+
+  facet_grid(cols=vars(知識性質), scales = "free", space = "free")
+```
+
+### **1-3-7 生活主題生是非前後測答對率（後測低分組n=45 vs.後測高分組n=39）**
+```{r, fig.height=5, fig.width=10,warning=F}
+kk<-yn_life.prepost.compare.table(Cdat1_yn%>%filter(gpost.low),
+                                  Cdat2_yn%>%filter(gpost.low),
+                                  Cdat1_yn%>%filter(gpost.high),
+                                  Cdat2_yn%>%filter(gpost.high),7)%>%
+  arrange(生活主題)
+kk1<-kk%>%dplyr::select(!c("知識性質","生活主題","覺察"))
+colnames(kk1)<-c("","","平均答對率","標準差","平均答對率","標準差","t統計量","p-value","檢定結果")
+
+kk1[,7]<-kk1[,7]%>%as.numeric%>%round(digits=3)
+
+kk1[,8]<-str_c(kk1[,8]%>%as.numeric%>%round(digits=3),cut(kk1[,8]%>%as.numeric, breaks=c(0,0.001,0.01,0.05,1),labels=c("***","**","*","")))
+
+kk1%>%kable("html",escape = F,booktabs = TRUE, digits=c(0,0,3,2,3,2,3,3,3), caption="7-3 生活主題生是非前後測答對率（後測低分組n=45 vs.後測高分組n=39）")%>%   
+  kable_styling(c("striped", "bordered"))%>%
+  add_header_above(c(" " = 2, "前測" = 2, "後測" = 2,"前後測成對t檢定" = 3))%>%
+  column_spec(1, bold = T)%>%
+  collapse_rows(columns = 1)%>%
+  group_rows(levels(kk$生活主題)[1], 1, cumsum(table(kk$生活主題))[[1]])%>%
+  group_rows(levels(kk$生活主題)[2], cumsum(table(kk$生活主題))[[1]]+1, cumsum(table(kk$生活主題))[[2]])%>%
+  group_rows(levels(kk$生活主題)[3], cumsum(table(kk$生活主題))[[2]]+1, cumsum(table(kk$生活主題))[[3]])%>%
+  group_rows(levels(kk$生活主題)[4], cumsum(table(kk$生活主題))[[3]]+1, cumsum(table(kk$生活主題))[[4]])%>%
+  group_rows(levels(kk$生活主題)[5], cumsum(table(kk$生活主題))[[4]]+1, cumsum(table(kk$生活主題))[[5]])%>%
+  group_rows(levels(kk$生活主題)[6], cumsum(table(kk$生活主題))[[5]]+1, cumsum(table(kk$生活主題))[[6]])%>%
+  group_rows(levels(kk$生活主題)[7], cumsum(table(kk$生活主題))[[6]]+1, cumsum(table(kk$生活主題))[[7]])%>%
+  group_rows(levels(kk$生活主題)[8], cumsum(table(kk$生活主題))[[7]]+1, cumsum(table(kk$生活主題))[[8]])
+
+yn.prepost.compare.plot(res, "生活主題生是非答對率之前後測結果比較（後測低分組n=45 vs.後測高分組n=39）", state=7)+
+  facet_grid(cols=vars(生活主題), scales = "free", space = "free")
+
+```
+
+### **1-3-8 覺察類生是非前後測答對率（後測低分組n=45 vs.後測高分組n=39）**
+```{r, fig.height=5, fig.width=10,warning=F}
+kk<-yn_life.prepost.compare.table(Cdat1_yn%>%filter(gpost.low),
+                                  Cdat2_yn%>%filter(gpost.low),
+                                  Cdat1_yn%>%filter(gpost.high),
+                                  Cdat2_yn%>%filter(gpost.high),7)%>%
+  filter(覺察==1)%>%dplyr::select(!c("知識性質","生活主題","覺察"))
+
+colnames(kk)<-c("","","平均答對率","標準差","平均答對率","標準差","t統計量","p-value","檢定結果")
+
+
+kk[,7]<-kk[,7]%>%as.numeric%>%round(digits=3)
+
+kk[,8]<-str_c(kk[,8]%>%as.numeric%>%round(digits=3),cut(kk[,8]%>%as.numeric, breaks=c(0,0.001,0.01,0.05,1),labels=c("***","**","*","")))
+
+kk%>%kable("html",escape = F,booktabs = TRUE, digits=c(0,0,3,2,3,2,3,3,3), caption="7-4 覺察類生是非前後測答對率（後測低分組n=45 vs.後測高分組n=39）")%>%   
+  kable_styling(c("striped", "bordered"))%>%
+  add_header_above(c(" " = 2, "前測" = 2, "後測" = 2,"前後測成對t檢定" = 3))%>%
+  column_spec(1, bold = T)%>%
+  collapse_rows(columns = 1)%>%
+  group_rows("覺察", 1, dim(kk)[1])
+
+yn.prepost.compare.plot(res[res$覺察==1,], "覺察類生是非答對率之前後測結果比較（後測低分組n=45 vs.後測高分組n=39）", state=7)
+```
+
+## **1-4 按前測總得分高低分組**
+```{r}
+type<-"前測總得分";num<-0.25
+
+out<-matrix(NA,3,3)
+rownames(out)<-c("高分組","平均組","低分組")
+colnames(out)<-c("分組依據",type,"組內人數")
+
+```
+
+### **1-4-1 分組敘述統計（按前測總得分分組）**
+```{r}
+out[1,1]<-paste(type,"的前",num*100,"%",sep="")
+out[2,1]<-paste(type,"的平均上下",(1-2*num)*100,"%",sep="")
+out[3,1]<-paste(type,"的後",num*100,"%",sep="")
+out[1,2]<-paste(quantile(Cdat1_yn$總得分,1-num),"分(含)以上",sep="")
+out[2,2]<-paste(quantile(Cdat1_yn$總得分,num)+2.5,"~",quantile(Cdat1_yn$總得分,1-num)-2.5,"分",sep="")
+out[3,2]<-paste(quantile(Cdat1_yn$總得分,num),"分(含)以下",sep="")
+gpre.high<-Cdat1_yn$總得分>=quantile(Cdat1_yn$總得分,1-num)
+gpre.low<-Cdat1_yn$總得分<=quantile(Cdat1_yn$總得分,num)
+
+out[1,3]<-length(which(gpre.high));out[3,3]<-length(which(gpre.low));out[2,3]<-dim(Cdat1_yn)[1]-length(which(gpre.high))-length(which(gpre.low))
+
+out%>%kable("html",escape = F,booktabs = TRUE, caption="1-4-1 分組敘述統計（按前測總得分分組）")%>%   
+  kable_styling(c("striped", "bordered"))%>%
+  column_spec(1, bold = T)
+```
+
+
+
+### **1-4-2 是非題答對率之前後測結果比較（前測低分組vs.前測高分組）**
+```{r, fig.height=5, fig.width=10,warning=F}
+kk<-yn.prepost.lowhigh.table(Cdat1_yn[which(gpre.low),],Cdat2_yn[which(gpre.low),],Cdat1_yn[which(gpre.high),],Cdat2_yn[which(gpre.high),])
+
+colnames(kk)<-c("\u200B","\u200B","平均答對率","標準差","平均答對率","標準差","t統計量","p-value","檢定結果","前測","後測","後測")
+
+kk[,8]<-str_c(kk[,8]%>%round(digits=3),cut(kk[,8], breaks=c(0,0.001,0.01,0.05,1),labels=c("***","**","*","")))
+
+kk%>%kable("html",escape = F,booktabs = TRUE, digits=c(0,0,3,2,3,2,3,3,3,3,3,3),caption="1-4-2 是非題答對率之前後測結果比較（前測低分組n=42 vs.前測高分組n=40） ")%>%   
+  kable_styling(c("striped", "bordered"))%>%
+  add_header_above(c(" " = 2, "前測" = 2, "後測" = 2,"前後測成對t檢定" = 3,"鑑別度" = 2, "難度" = 1))%>%
+  column_spec(1, bold = T)%>%
+  collapse_rows(columns = c(1,10,11,12))%>%
+  group_rows("生是非", 1, 60)%>%
+  group_rows("技是非", 61, 80)
+
+res_low<-yn.prepost.table(Cdat1_yn[which(gpre.low),], Cdat2_yn[which(gpre.low),])
+res_high<-yn.prepost.table(Cdat1_yn[which(gpre.high),], Cdat2_yn[which(gpre.high),])
+res<-rbind(res_low, res_high)
+
+yn.prepost.plot.lowhigh(res, "是非題答對率之前後測結果比較（前測低分組vs.前測高分組）")
+```
+
+### **1-4-3 鑑別度、難度分析（前測低分組vs.前測高分組）**
+```{r, fig.height=5, fig.width=10,warning=F}
+kk<-yn.prepost.lowhigh.table(Cdat1_yn[which(gpre.low),],Cdat2_yn[which(gpre.low),],Cdat1_yn[which(gpre.high),],Cdat2_yn[which(gpre.high),])
+
+yn.prepost.plot.lowhigh.D(kk, "是非題鑑別度之前後測結果比較及難度之呈現（取前測低分組、高分組分析）")
+```
+
+### **1-4-4 全部生是非、知識性質及覺察類是非題彙整表格（前測低分組n=42 vs.前測高分組n=40）**
+```{r}
+kk<-mean_table_all2(Cdat1_yn%>%filter(gpre.low), Cdat2_yn%>%filter(gpre.low),
+               Cdat1_yn%>%filter(gpre.high), Cdat2_yn%>%filter(gpre.high), state=6)
+
+kk[[1]]%>%kableExtra::kable("html",escape = F,booktabs = TRUE,digits=c(0,0,3,2,3,2,3,3,3,3,3,3,3,3,3,3,3,3),caption="1-4-4 全部生是非、知識性質及覺察類是非題彙整表格（前測低分組n=42 vs.前測高分組n=40）")%>%
+  kable_styling(c("striped", "bordered"))%>%
+  add_header_above(c(" " = 2, "前測" = 2, "後測" = 2,"前後測成對t檢定" = 3, "高分組-低分組獨立t檢定 (進步量)"=3, "高分組-低分組獨立t檢定 (前測)"=3, "高分組-低分組獨立t檢定 (後測)"=3))%>%
+  column_spec(1, bold = T)%>%
+  collapse_rows(columns = c(1,10:18))
+```
+
+### **1-4-5 全部生是非、知識性質及覺察類是非題盒形圖（前測低分組n=42 vs.前測高分組n=40）**
+```{r, fig.height=5, fig.width=10,warning=F}
+yn.prepost.compare.boxplot(Cdat1_yn%>%filter(gpre.low), Cdat2_yn%>%filter(gpre.low),
+               Cdat1_yn%>%filter(gpre.high), Cdat2_yn%>%filter(gpre.high), state=6, title="全部生是非、知識性質及覺察類是非題盒形圖（前測低分組n=42 vs.前測高分組n=40）")
+```
+
+## **1-5 前測高/低分組的後測總得分之敘述統計 **
+
+```{r}
+out<-matrix(NA,6,8)
+out[,1]<-rep(c("低分組","高分組"), each=3)
+out[,2]<-rep(c("低分組","平均組","高分組"),2)
+colnames(out)<-c("前測組別","後測組別","組內人數","最低分數","第1四分位數(下界)","中位數","第3四分位數(上界)","最高分數")
+
+gg<-list((gpre.low & gpost.low),
+           (gpre.low & !(gpost.low|gpost.high)),
+           (gpre.low & gpost.high),
+           (gpre.high & gpost.low),
+           (gpre.high & !(gpost.low|gpre.high & gpost.high)),
+           (gpre.high & gpost.high))
+
+out[,3]<-sapply(gg,sum)
+
+out[,4:8]<-sapply(gg, function(i) fivenum(Cdat2_yn[i,]$總得分))%>%t()
+
+out%>%kable("html",escape = F,booktabs = TRUE, caption="1-5 前測高/低分組的後測總得分之敘述統計")%>%
+  kable_styling(c("striped", "bordered"))%>%
+  column_spec(1, bold = T)%>%
+  collapse_rows(columns = 1)
+```
+
+
+```{r, fig.height=5, fig.width=8,warning=F}
+Cdat2_yn[["前測分組"]]<-ifelse(gpre.low,"前測低分組",ifelse(gpre.high,"前測高分組","前測平均組"))%>%factor(levels = c("前測低分組","前測平均組","前測高分組"))
+Cdat2_yn[["後測分組"]]<-ifelse(gpost.low,"後測低分組",ifelse(gpost.high,"後測高分組","後測平均組"))%>%factor(levels = c("後測低分組","後測平均組","後測高分組"))
+
+Cdat2_yn%>%filter(前測分組!="前測平均組")%>%
+  dplyr::select(`總得分`,`前測分組`,`後測分組`) %>%
+  # gather 所有變數，除了 island 之外(要當成獨立一個欄位，做為群組)
+  gather(key = 'variable', value = 'measurements', -c(`後測分組`,`前測分組`))%>%
+  ggplot(mapping = aes(x = `前測分組`, y = measurements, col = `後測分組`)) +
+	# 繪製盒鬚圖，使用 position_dodge 調整間距
+    geom_boxplot(position = position_dodge(0.8)) +
+    # 修改 x 軸標籤為 Soil properties
+    labs(x = '項目',y="分數", title="前測高/低分組的後測總得分的盒形圖")+
+    scale_y_continuous(limits=c(0,100),breaks = seq(0,100,10))+
+    theme(legend.position = "top", plot.title = element_text(face="bold",size=16),
+          legend.title = element_text(size=14),
+          legend.text = element_text(size=12),
+          axis.title.x = element_text(face="bold",size=16),
+          axis.title.y = element_text(face="bold",size=16),
+          axis.text.x = element_text(size=12),
+          axis.text.y = element_text(size=12))
+
+```
+
+# **2. 表格彙整**
+
+## **2-1 計算全部人/國中生/高中生答對率彙整表格（分成生是非、技是非兩種情形）**
+
+```{r}
+mean_score<-matrix(NA,3,12)
+rownames(mean_score)<-c("全部人 (n=146)","國中生 (n=88)","高中生 (n=58)")
+colnames(mean_score)<-rep(c("平均答對率","標準差","平均答對率","標準差","t統計量","p-value"),2)
+
+mean_score[1,]<-mean_table(Cdat1_yn, Cdat2_yn)
+mean_score[2,]<-mean_table(Cdat1_yn.ju, Cdat2_yn.ju)
+mean_score[3,]<-mean_table(Cdat1_yn.se, Cdat2_yn.se)
+
+mean_score[,c(6,12)]<-"0***"
+
+#mean_score[,12]<-str_c(mean_score[,12]%>%as.numeric()%>%round(digits=3),cut(mean_score[,12]%>%as.numeric(), breaks=c(0,0.001,0.01,0.05,1),labels=c("***","**","*","")))
+
+mean_score%>%kableExtra::kable("html",escape = F,booktabs = TRUE,caption="2-1 計算全部人/國中生/高中生答對率彙整表格（分成生是非、技是非兩種情形）")%>%
+  kable_styling(c("striped", "bordered"))%>%
+  add_header_above(c(" " = 1, "前測" = 2, "後測" = 2, "前後測成對t檢定" = 2,  "前測" = 2, "後測" = 2, "前後測成對t檢定" = 2))%>%
+  add_header_above(c(" " = 1, "生是非" = 6, "技是非" = 6))%>%
+  column_spec(1, bold = T)
+
+#write.xlsx(mean_score, rowNames=T,startCol=1,"C:/Users/h2407/OneDrive/文件/1121/師培中心分析案/報表資料檔/生是非與技是非的整體平均.xlsx")
+```
+
+## **2-2 計算全部人/國中生/高中生的分數彙整表格（分成全部是非題、僅覺察類兩種情形）**
+```{r}
+# 針對不同人分數的檢定（自由度來自人數）
+mean_table.allsense<-function(data1,data2){
+  
+  all.pre<-data1$總得分
+  all.post<-data2$總得分
+  t_all<-t.test(all.post,all.pre,paired=T)
+  t.all<-t_all$statistic[[1]]%>%round(digits=3)
+  p.all<-t_all$p.value
+  
+  sense.pre<-rowSums(sapply(colnames(ans)[which(typee$sense==1)],function(i) (data1[[i]]==ans[[i]])))*2.5*length(ans)/sum(typee$sense==1)
+  sense.post<-rowSums(sapply(colnames(ans)[which(typee$sense==1)],function(i) (data2[[i]]==ans[[i]])))*2.5*length(ans)/sum(typee$sense==1)
+  t_sense<-t.test(sense.post,sense.pre,paired=T)
+  t.sense<-t_sense$statistic[[1]]%>%round(digits=3)
+  p.sense<-t_sense$p.value
+  
+  return(c(mean(all.pre)%>%round(digits=2),sd(all.pre)%>%round(digits=1),
+           mean(all.post)%>%round(digits=2),sd(all.post)%>%round(digits=1),t.all,p.all,
+           mean(sense.pre)%>%round(digits=2),sd(sense.pre)%>%round(digits=1),
+           mean(sense.post)%>%round(digits=2),sd(sense.post)%>%round(digits=1),t.sense,p.sense))
+}
+```
+
+```{r}
+mean_score<-matrix(NA,3,12)
+rownames(mean_score)<-c("全部人 (n=146)","國中生 (n=88)","高中生 (n=58)")
+colnames(mean_score)<-rep(c("平均分數","標準差","平均分數","標準差","t統計量","p-value"),2)
+
+mean_score[1,]<-mean_table.allsense(Cdat1_yn, Cdat2_yn)
+mean_score[2,]<-mean_table.allsense(Cdat1_yn.ju, Cdat2_yn.ju)
+mean_score[3,]<-mean_table.allsense(Cdat1_yn.se, Cdat2_yn.se)
+
+mean_score[,c(6,12)]<-"0***"
+
+# mean_score[,6]<-str_c(mean_score[,6]%>%as.numeric()%>%round(digits=3),cut(mean_score[,6]%>%as.numeric(), breaks=c(0,0.001,0.01,0.05,1),labels=c("***","**","*","")))
+# 
+# mean_score[,12]<-str_c(mean_score[,12]%>%as.numeric()%>%round(digits=3),cut(mean_score[,12]%>%as.numeric(), breaks=c(0,0.001,0.01,0.05,1),labels=c("***","**","*","")))
+
+mean_score%>%kableExtra::kable("html",escape = F,booktabs = TRUE,caption="2-2 計算全部人/國中生/高中生的分數彙整表格（分成全部是非題、僅覺察類兩種情形）")%>%
+  kable_styling(c("striped", "bordered"))%>%
+  add_header_above(c(" " = 1, "前測" = 2, "後測" = 2, "前後測成對t檢定" = 2,  "前測" = 2, "後測" = 2, "前後測成對t檢定" = 2))%>%
+  add_header_above(c(" " = 1, "全部是非題" = 6, "覺察類" = 6))%>%
+  column_spec(1, bold = T)
+
+#write.xlsx(mean_score, rowNames=T,startCol=1,"C:/Users/h2407/OneDrive/文件/1121/師培中心分析案/報表資料檔/生是非與技是非的整體平均.xlsx")
+```
+
+```{r}
+mean_table.lifes<-function(data1,data2,topic){
+  if(topic=="覺察"){
+    dd<-yn_life.prepost.table(data1,data2)%>%filter(覺察==1)
+    res<-matrix(NA, 1, 6)
+    mean.pre<-mean(dd$`答對率（前測）`);mean.post<-mean(dd$`答對率（後測）`)
+    sd.pre<-sd(dd$`答對率（前測）`);sd.post<-sd(dd$`答對率（後測）`)
+    ttest<-t.test(dd$`答對率（後測）`,dd$`答對率（前測）`,paired=T)
+    t.test.t<-ttest$statistic[[1]]
+    t.test.p<-ttest$p.value
+  }else{
+    dd<-yn_life.prepost.table(data1,data2)
+    res<-matrix(NA, length(levels(dd[[topic]])), 6)
+    mean.pre<-aggregate(dd$`答對率（前測）`,list(dd[[topic]]),"mean")$x
+    mean.post<-aggregate(dd$`答對率（後測）`,list(dd[[topic]]),"mean")$x
+    sd.pre<-aggregate(dd$`答對率（前測）`,list(dd[[topic]]),"sd")$x
+    sd.post<-aggregate(dd$`答對率（後測）`,list(dd[[topic]]),"sd")$x
+    t.test.t<-t.test.p<-c()
+    for(i in levels(dd[[topic]])){
+      if(sum(dd[[topic]]==i)<=2){
+        t.test.t<-c(t.test.t,NA); t.test.p<-c(t.test.p,NA)
+        next
+      }
+      group.pre<-dd[dd[[topic]]==i,]$`答對率（前測）`
+      group.post<-dd[dd[[topic]]==i,]$`答對率（後測）`
+      ttest<-t.test(group.post,group.pre,paired=T)
+      t<-ttest$statistic[[1]]
+      p<-ttest$p.value
+      t.test.t<-c(t.test.t, t); t.test.p<-c(t.test.p, p)
+      # s<-sapply(dd[dd[[topic]]==i,]%>%rownames(), function(i) data2[[i]]==ans[[i]])%>%as.vector()
+      # s2<-sapply(dd[dd[[topic]]==i,]%>%rownames(), function(i) data1[[i]]==ans[[i]])%>%as.vector()
+      # t.test(s, s2, pair=T)
+    }
+  }
+  res[,1]<-mean.pre
+  res[,2]<-mean.post
+  res[,3]<-sd.pre
+  res[,4]<-sd.post
+  res[,5]<-t.test.t
+  res[,6]<-t.test.p
+  return(res)
+}
+```
+
+## **2-3-1 知識性質及覺察類是非題彙整表格（全部人n=146）**
+```{r}
+out<-matrix(NA,4,6)%>%as.data.frame()
+rownames(out)<-c("知識","推論","計算","覺察")
+colnames(out)<-rep(c("平均答對率","標準差","平均答對率","標準差","t統計量","p-value"))
+
+out[1:3,]<-mean_table.lifes(Cdat1_yn, Cdat2_yn, "知識性質")
+out[4,]<-mean_table.lifes(Cdat1_yn, Cdat2_yn, "覺察")[1,]
+
+out[,6]<-str_c(out[,6]%>%round(digits=3),cut(out[,6], breaks=c(0,0.001,0.01,0.05,1),labels=c("***","**","*","")))
+
+out%>%kableExtra::kable("html",escape = F,booktabs = TRUE,digits=c(3,2,3,2,3,3),caption="2-3-1 知識性質及覺察類是非題彙整表格（全部人n=146）")%>%
+  kable_styling(c("striped", "bordered"))%>%
+  add_header_above(c(" " = 1, "前測" = 2, "後測" = 2,"前後測成對t檢定" = 2))%>%
+  add_header_above(c(" " = 1, "全部人 (n=146)" = 6))%>%
+  column_spec(1, bold = T)
+
+
+```
+
+## **2-3-2 知識性質及覺察類是非題彙整表格（國中生）**
+```{r}
+out<-matrix(NA,4,6)%>%as.data.frame()
+rownames(out)<-c("知識","推論","計算","覺察")
+colnames(out)<-rep(c("平均答對率","標準差","平均答對率","標準差","t統計量","p-value"))
+
+out[1:3,]<-mean_table.lifes(Cdat1_yn.ju, Cdat2_yn.ju, "知識性質")
+out[4,]<-mean_table.lifes(Cdat1_yn.ju, Cdat2_yn.ju, "覺察")[1,]
+
+out[,6]<-str_c(out[,6]%>%round(digits=3),cut(out[,6], breaks=c(0,0.001,0.01,0.05,1),labels=c("***","**","*","")))
+
+out%>%kableExtra::kable("html",escape = F,booktabs = TRUE,digits=c(3,2,3,2,3,3),caption="2-3-2 知識性質及覺察類是非題彙整表格（國中生）")%>%
+  kable_styling(c("striped", "bordered"))%>%
+  add_header_above(c(" " = 1, "前測" = 2, "後測" = 2,"前後測成對t檢定" = 2))%>%
+  add_header_above(c(" " = 1, "國中生(n=88)" = 6))%>%
+  column_spec(1, bold = T)
+
+
+```
+
+## **2-3-3 知識性質及覺察類是非題彙整表格（高中生）**
+```{r}
+out<-matrix(NA,4,6)%>%as.data.frame()
+rownames(out)<-c("知識","推論","計算","覺察")
+colnames(out)<-rep(c("平均答對率","標準差","平均答對率","標準差","t統計量","p-value"))
+
+out[1:3,]<-mean_table.lifes(Cdat1_yn.se, Cdat2_yn.se, "知識性質")
+out[4,]<-mean_table.lifes(Cdat1_yn.se, Cdat2_yn.se, "覺察")[1,]
+
+out[,1:5]<-sapply(1:5, function(i) out[,i]%>%as.numeric())
+
+out[,6]<-str_c(out[,6]%>%round(digits=3),cut(out[,6], breaks=c(0,0.001,0.01,0.05,1),labels=c("***","**","*","")))
+
+out%>%kableExtra::kable("html",escape = F,booktabs = TRUE,digits=c(3,2,3,2,3,3),caption="2-3-3 知識性質及覺察類是非題彙整表格（高中生）")%>%
+  kable_styling(c("striped", "bordered"))%>%
+  add_header_above(c(" " = 1, "前測" = 2, "後測" = 2,"前後測成對t檢定" = 2))%>%
+  add_header_above(c(" " = 1, "高中生(n=58)" = 6))%>%
+  column_spec(1, bold = T)
+
+
+```
+
+# **3. 是非題前後測分析（生是非+技是非）**
+
+## **3-1 是非題前後測答對率（全部人n=146）**
+```{r, fig.height=5, fig.width=10,warning=F}
+paste("樣本數 =",dim(Cdat1_yn)[1])
+kk<-yn.prepost.table(Cdat1_yn, Cdat2_yn)[,-1]
+colnames(kk)<-c("平均答對率","標準差","平均答對率","標準差","t統計量","p-value","檢定結果")
+
+kk[,6]<-str_c(kk[,6]%>%round(digits=3),cut(kk[,6], breaks=c(0,0.001,0.01,0.05,1),labels=c("***","**","*","")))
+
+kk%>%kable("html",escape = F,booktabs = TRUE, digits=c(3,2,3,2,3,3,3), caption="1-1 是非題前後測答對率（全部人n=146）")%>%
+  kable_styling(c("striped", "bordered"))%>%
+  add_header_above(c(" " = 1, "前測" = 2, "後測" = 2, "前後測成對t檢定" = 3))%>%
+  column_spec(1, bold = T)%>%
+  group_rows("生是非", 1, 30)%>%
+  group_rows("技是非", 31, 40)
+
+yn.prepost.plot(Cdat1_yn, Cdat2_yn, "是非題答對率之前後測結果比較（全部人n=146）")
+```
+
+## **3-2 是非題前後測答對率（國中生n=88）**
+```{r, fig.height=5, fig.width=10,warning=F}
+paste("樣本數 =",dim(Cdat1_yn.ju)[1])
+kk<-yn.prepost.table(Cdat1_yn.ju, Cdat2_yn.ju)[,-1]
+colnames(kk)<-c("平均答對率","標準差","平均答對率","標準差","t統計量","p-value","檢定結果")
+
+kk[,6]<-str_c(kk[,6]%>%round(digits=3),cut(kk[,6], breaks=c(0,0.001,0.01,0.05,1),labels=c("***","**","*","")))
+
+kk%>%kable("html",escape = F,booktabs = TRUE, digits=c(3,2,3,2,3,3,3),caption="1-2 是非題前後測答對率（國中生n=88）")%>%
+  kable_styling(c("striped", "bordered"))%>%
+  add_header_above(c(" " = 1, "前測" = 2, "後測" = 2, "前後測成對t檢定" = 3))%>%
+  column_spec(1, bold = T)%>%
+  group_rows("生是非", 1, 30)%>%
+  group_rows("技是非", 31, 40)
+
+yn.prepost.plot(Cdat1_yn.ju, Cdat2_yn.ju, "是非題答對率之前後測結果比較（國中生n=88）")
+```
+
+## **3-3 是非題前後測答對率（高中生n=58）**
+```{r, fig.height=5, fig.width=10,warning=F}
+paste("樣本數 =",dim(Cdat1_yn.se)[1])
+kk<-yn.prepost.table(Cdat1_yn.se, Cdat2_yn.se)[,-1]
+colnames(kk)<-c("平均答對率","標準差","平均答對率","標準差","t統計量","p-value","檢定結果")
+
+kk[,6]<-str_c(kk[,6]%>%round(digits=3),cut(kk[,6], breaks=c(0,0.001,0.01,0.05,1),labels=c("***","**","*","")))
+
+kk%>%kable("html",escape = F,booktabs = TRUE, digits=c(3,2,3,2,3,3,3),caption="1-3 是非題前後測答對率（高中生n=58）")%>%
+  kable_styling(c("striped", "bordered"))%>%
+  add_header_above(c(" " = 1, "前測" = 2, "後測" = 2, "前後測成對t檢定" = 3))%>%
+  column_spec(1, bold = T)%>%
+  group_rows("生是非", 1, 30)%>%
+  group_rows("技是非", 31, 40)
+
+yn.prepost.plot(Cdat1_yn.se, Cdat2_yn.se, "是非題答對率之前後測結果比較（高中生n=58）")
+```
+
+## **3-4 是非題前後測答對率（國中生n=88 vs. 高中生n=58）**
+```{r, fig.height=5, fig.width=10,warning=F}
+kk<-yn.prepost.compare.table(Cdat1_yn.ju, Cdat2_yn.ju, Cdat1_yn.se, Cdat2_yn.se, state=1)
+
+colnames(kk)<-c("","","平均答對率","標準差","平均答對率","標準差","t統計量","p-value","檢定結果")
+
+kk[,8]<-str_c(kk[,8]%>%round(digits=3),cut(kk[,8], breaks=c(0,0.001,0.01,0.05,1),labels=c("***","**","*","")))
+
+kk%>%kable("html",escape = F,booktabs = TRUE, digits=c(0,0,3,2,3,2,3,3,3),caption="1-4 是非題前後測答對率（國中生n=88 vs. 高中生n=58）")%>%   
+  kable_styling(c("striped", "bordered"))%>%
+  add_header_above(c(" " = 2, "前測" = 2, "後測" = 2,"前後測成對t檢定" = 3))%>%
+  column_spec(1, bold = T)%>%
+  collapse_rows(columns = 1)%>%
+  group_rows("生是非", 1, 60)%>%
+  group_rows("技是非", 61, 80)
+
+res_ju<-yn.prepost.table(Cdat1_yn.ju, Cdat2_yn.ju)
+res_se<-yn.prepost.table(Cdat1_yn.se, Cdat2_yn.se)
+res1<-rbind(res_ju, res_se)
+
+yn.prepost.compare.plot(res1, "是非題答對率之前後測結果比較（國中生n=88 vs. 高中生n=58）", state=1)
+```
+
+### **3-4-1 全部生是非、知識性質及覺察類是非題彙整表格（國中生n=88 vs. 高中生n=58）**
+```{r}
+kk<-mean_table_all2(Cdat1_yn.ju, Cdat2_yn.ju,
+               Cdat1_yn.se, Cdat2_yn.se, state=1)
+
+kk[[1]]%>%kableExtra::kable("html",escape = F,booktabs = TRUE,digits=c(0,0,3,2,3,2,3,3,3,3,3,3,3,3,3,3,3,3),caption="3-4-1 全部生是非、知識性質及覺察類是非題彙整表格（國中生n=88 vs. 高中生n=58）")%>%
+  kable_styling(c("striped", "bordered"))%>%
+  add_header_above(c(" " = 2, "前測" = 2, "後測" = 2,"前後測成對t檢定" = 3, "高中-國中獨立t檢定 (進步量)"=3, "高中-國中獨立t檢定 (前測)"=3, "高中-國中獨立t檢定 (後測)"=3))%>%
+  column_spec(1, bold = T)%>%
+  collapse_rows(columns = c(1,10:18))
+```
+
+### **3-4-2 全部生是非、知識性質及覺察類是非題盒形圖（國中生n=88 vs. 高中生n=58）**
+```{r, fig.height=5, fig.width=10,warning=F}
+yn.prepost.compare.boxplot(Cdat1_yn.ju, Cdat2_yn.ju,Cdat1_yn.se,Cdat2_yn.se,state=1,title="全部生是非、知識性質及覺察類是非題盒形圖（國中生n=88 vs. 高中生n=58）")
+
+```
+
+
+
+# **生是非各種分類的前後測分析**
+
+# **4. 知識性質生是非前後測變化**
+
+## **4-1-1 知識性質的表格彙整（全部人n=146）**
+```{r}
+mean_score.know<-mean_table.lifes(Cdat1_yn, Cdat2_yn, "知識性質")%>%as.data.frame()
+rownames(mean_score.know)<-levels(typee$know)
+colnames(mean_score.know)<-c("平均答對率","標準差","平均答對率","標準差","t統計量","p-value")
+
+mean_score.know[,6]<-str_c(mean_score.know[,6]%>%as.numeric()%>%round(digits=3),cut(mean_score.know[,6]%>%as.numeric(), breaks=c(0,0.001,0.01,0.05,1),labels=c("***","**","*","")))
+
+kable(mean_score.know,"html",escape = F,booktabs = TRUE, digits=c(3,3,2,2,3),caption="4-1-1 知識性質的表格彙整（全部人n=146）")%>%
+  kable_styling(c("striped", "bordered"))%>%
+  add_header_above(c(" " = 1, "前測" = 2, "後測" = 2, "前後測成對t檢定" = 2))%>%
+  column_spec(1, bold = T)
+
+#write.xlsx(mean_score.know,rowNames=T,"C:/Users/h2407/OneDrive/文件/1121/師培中心分析案/報表資料檔/不同知識性質生是非的整體平均（全部人n=146）.xlsx")
+```
+
+## **4-1-2 知識性質生是非（全部人n=146）**
+```{r, fig.height=5, fig.width=10,warning=F}
+paste("樣本數 =",dim(Cdat1_yn)[1])
+kk<-yn_life.prepost.table(Cdat1_yn, Cdat2_yn)
+kk$題號<-typee$num
+#rownames(kk)<-typee$num
+kk<-kk%>%
+  arrange(知識性質)%>%dplyr::select(!c("知識性質","生活主題","覺察"))
+colnames(kk)<-c("","平均答對率","標準差","平均答對率","標準差","t統計量","p-value","檢定結果")
+#rownames(kk)<-names(ans)[1:30]
+
+kk[,7]<-str_c(kk[,7]%>%round(digits=3),cut(kk[,7], breaks=c(0,0.001,0.01,0.05,1),labels=c("***","**","*","")))
+
+kk%>%kable("html",escape = F,row.names = FALSE,booktabs = TRUE, digits=c(0,3,2,3,2,3,3,3),caption="4-1-2 知識性質生是非（全部人n=146）")%>%   
+  kable_styling(c("striped", "bordered"))%>%
+  add_header_above(c(" " = 1, "前測" = 2, "後測" = 2,"前後測成對t檢定" = 3))%>%
+  column_spec(1, bold = T)%>%
+  group_rows("知識", 1, 10)%>%
+  group_rows("推論", 11, 25)%>%
+  group_rows("計算", 26, 30)
+
+yn_life.prepost.plot.know(Cdat1_yn, Cdat2_yn, "知識性質生是非答對率之前後測結果比較（全部人n=146）")
+```
+
+### **4-2-1 知識性質生是非（國中生n=88）**
+```{r, fig.height=5, fig.width=10,warning=F}
+paste("樣本數 =",dim(Cdat1_yn.ju)[1])
+kk<-yn_life.prepost.table(Cdat1_yn.ju, Cdat2_yn.ju)
+kk$題號<-typee$num
+kk<-kk%>%
+  arrange(知識性質)%>%dplyr::select(!c("知識性質","生活主題","覺察"))
+colnames(kk)<-c("","平均答對率","標準差","平均答對率","標準差","t統計量","p-value","檢定結果")
+#rownames(kk)<-names(ans)[1:30]
+
+kk[,7]<-str_c(kk[,7]%>%round(digits=3),cut(kk[,7], breaks=c(0,0.001,0.01,0.05,1),labels=c("***","**","*","")))
+
+kk%>%kable("html",escape = F,row.names = FALSE,booktabs = TRUE, digits=c(0,3,2,3,2,3,3,3),caption="4-2-1 知識性質生是非（國中生n=88）")%>%   
+  kable_styling(c("striped", "bordered"))%>%
+  add_header_above(c(" " = 1, "前測" = 2, "後測" = 2,"前後測成對t檢定" = 3))%>%
+  column_spec(1, bold = T)%>%
+  group_rows("知識", 1, 10)%>%
+  group_rows("推論", 11, 25)%>%
+  group_rows("計算", 26, 30)
+
+yn_life.prepost.plot.know(Cdat1_yn.ju, Cdat2_yn.ju, "知識性質生是非答對率之前後測結果比較（國中生n=88）")
+```
+
+### **4-2-2 知識性質生是非（高中生n=58）**
+```{r, fig.height=5, fig.width=10,warning=F}
+paste("樣本數 =",dim(Cdat1_yn.se)[1])
+kk<-yn_life.prepost.table(Cdat1_yn.se, Cdat2_yn.se)
+kk$題號<-typee$num
+kk<-kk%>%
+  arrange(知識性質)%>%dplyr::select(!c("知識性質","生活主題","覺察"))
+colnames(kk)<-c("","平均答對率","標準差","平均答對率","標準差","t統計量","p-value","檢定結果")
+#rownames(kk)<-names(ans)[1:30]
+
+kk[,7]<-str_c(kk[,7]%>%round(digits=3),cut(kk[,7], breaks=c(0,0.001,0.01,0.05,1),labels=c("***","**","*","")))
+
+kk%>%kable("html",row.names = FALSE,escape = F,booktabs = TRUE, digits=c(0,3,2,3,2,3,3,3),caption="4-2-2 知識性質生是非（高中生n=58）")%>%   
+  kable_styling(c("striped", "bordered"))%>%
+  add_header_above(c(" " = 1, "前測" = 2, "後測" = 2,"前後測成對t檢定" = 3))%>%
+  column_spec(1, bold = T)%>%
+  group_rows("知識", 1, 10)%>%
+  group_rows("推論", 11, 25)%>%
+  group_rows("計算", 26, 30)
+
+yn_life.prepost.plot.know(Cdat1_yn.se, Cdat2_yn.se, "知識性質生是非答對率之前後測結果比較（高中生n=58）")
+```
+
+## **4-3-1 知識性質的表格彙整（國中生n=88 vs. 高中生n=58）**
+```{r, warning=F}
+mean_score.know1<-mean_table.lifes(Cdat1_yn.ju, Cdat2_yn.ju, "知識性質")%>%as.data.frame()
+mean_score.know2<-mean_table.lifes(Cdat1_yn.se, Cdat2_yn.se, "知識性質")%>%as.data.frame()
+mean_score.know.juse<-cbind(mean_score.know1, mean_score.know2)
+rownames(mean_score.know.juse)<-levels(typee$know)
+colnames(mean_score.know.juse)<-rep(c("平均答對率","標準差","平均答對率","標準差","t統計量","p-value"),2)
+
+mean_score.know.juse[,6]<-str_c(mean_score.know.juse[,6]%>%as.numeric()%>%round(digits=3),cut(mean_score.know.juse[,6]%>%as.numeric(), breaks=c(0,0.001,0.01,0.05,1),labels=c("***","**","*","")))
+
+mean_score.know.juse[,12]<-str_c(mean_score.know.juse[,12]%>%as.numeric()%>%round(digits=3),cut(mean_score.know.juse[,12]%>%as.numeric(), breaks=c(0,0.001,0.01,0.05,1),labels=c("***","**","*","")))
+
+
+mean_score.know.juse%>%kable("html",escape = F,booktabs = TRUE, digits=c(3,2,3,2,3,3,3),caption="4-3-1 知識性質的表格彙整（國中生n=88 vs. 高中生n=58）")%>%
+  kable_styling(c("striped", "bordered"))%>%
+  add_header_above(c(" " = 1, "前測" = 2, "後測" = 2,"前後測成對t檢定" = 2, "前測" = 2, "後測" = 2,"前後測成對t檢定" = 2))%>%
+  add_header_above(c(" " = 1, "國中生 (n=73)" = 6, "高中生 (n=34)" = 6))%>%
+  column_spec(1, bold = T)
+
+#write.xlsx(mean_score.know.juse,rowNames=T,"C:/Users/h2407/OneDrive/文件/1121/師培中心分析案/報表資料檔/不同知識性質生是非的整體平均（國中生n=88 vs. 高中生n=58）.xlsx")
+```
+
+## **4-3-2 知識性質生是非（國中生n=88 vs. 高中生n=58）**
+```{r, fig.height=5, fig.width=10,warning=F}
+kk<-yn_life.prepost.compare.table(Cdat1_yn.ju, Cdat2_yn.ju, Cdat1_yn.se, Cdat2_yn.se, 1)%>%arrange(知識性質)%>%dplyr::select(!c("知識性質","生活主題","覺察"))
+
+colnames(kk)<-c("","","平均答對率","標準差","平均答對率","標準差","t統計量","p-value","檢定結果")
+
+kk[,8]<-str_c(kk[,8]%>%round(digits=3),cut(kk[,8], breaks=c(0,0.001,0.01,0.05,1),labels=c("***","**","*","")))
+
+kk%>%kable("html",escape = F,booktabs = TRUE, digits=c(0,0,3,2,3,2,3,3,3), caption="4-3-2 知識性質生是非（國中生n=88 vs. 高中生n=58）")%>%   
+  kable_styling(c("striped", "bordered"))%>%
+  add_header_above(c(" " = 2, "前測" = 2, "後測" = 2,"前後測成對t檢定" = 3))%>%
+  column_spec(1, bold = T)%>%
+  collapse_rows(columns = 1)%>%
+  group_rows("知識", 1, 20)%>%
+  group_rows("推論", 21, 50)%>%
+  group_rows("計算", 51, 60)
+
+res_ju<-yn_life.prepost.table(Cdat1_yn.ju, Cdat2_yn.ju)
+res_se<-yn_life.prepost.table(Cdat1_yn.se, Cdat2_yn.se)
+res11<-rbind(res_ju, res_se)
+
+yn.prepost.compare.plot(res11, "知識性質生是非答對率之前後測結果比較（國中生n=88 vs. 高中生n=58）", state=1)+
+  facet_grid(cols=vars(知識性質), scales = "free", space = "free")
+```
+
+# **5. 生活主題生是非前後測變化**
+
+## **5-1-1 生活主題的表格彙整（全部人n=146）**
+```{r}
+mean_score.life<-mean_table.lifes(Cdat1_yn, Cdat2_yn, "生活主題")%>%as.data.frame()
+rownames(mean_score.life)<-levels(typee$life)
+colnames(mean_score.life)<-c("平均答對率","標準差","平均答對率","標準差","t統計量","p-value")
+
+mean_score.life[,6]<-str_c(mean_score.life[,6]%>%as.numeric()%>%round(digits=3),cut(mean_score.life[,6]%>%as.numeric(), breaks=c(0,0.001,0.01,0.05,1),labels=c("***","**","*","")))
+
+kable(mean_score.life,"html",escape = F,booktabs = TRUE, digits=c(3,2,3,2,3,3,3),caption="5-1-1 生活主題的表格彙整（全部人n=146）")%>%
+  kable_styling(c("striped", "bordered"))%>%
+  add_header_above(c(" " = 1, "前測" = 2, "後測" = 2,"前後測成對t檢定" = 2))%>%
+  column_spec(1, bold = T)
+
+#write.xlsx(mean_score.life,rowNames=T,"C:/Users/h2407/OneDrive/文件/1121/師培中心分析案/報表資料檔/不同生活主題生是非的整體平均（全部人n=146）.xlsx")
+```
+
+## **5-1-2 生活主題生是非（全部人n=146）**
+```{r, fig.height=5, fig.width=10,warning=F}
+paste("樣本數 =",dim(Cdat1_yn)[1])
+kk<-yn_life.prepost.table(Cdat1_yn, Cdat2_yn)
+kk$題號<-typee$num
+kk1<-kk%>%
+  arrange(生活主題)%>%dplyr::select(!c("知識性質","生活主題","覺察"))
+#kk1<-kk%>%dplyr::select(!c("知識性質","生活主題","覺察"))
+colnames(kk1)<-c("","平均答對率","標準差","平均答對率","標準差","t統計量","p-value","檢定結果")
+#rownames(kk1)<-names(ans)[1:30]
+
+kk1[,7]<-str_c(kk1[,7]%>%round(digits=3),cut(kk1[,7], breaks=c(0,0.001,0.01,0.05,1),labels=c("***","**","*","")))
+
+kk1%>%kable("html",escape = F,row.names = FALSE,booktabs = TRUE, digits=c(0,3,2,3,2,3,3,3), caption="5-1-2 生活主題生是非（全部人n=146）")%>%   
+  kable_styling(c("striped", "bordered"))%>%
+  add_header_above(c(" " = 1, "前測" = 2, "後測" = 2,"前後測成對t檢定" = 3))%>%
+  column_spec(1, bold = T)%>%
+  group_rows(levels(kk$生活主題)[1], 1, cumsum(table(kk$生活主題))[[1]])%>%
+  group_rows(levels(kk$生活主題)[2], cumsum(table(kk$生活主題))[[1]]+1, cumsum(table(kk$生活主題))[[2]])%>%
+  group_rows(levels(kk$生活主題)[3], cumsum(table(kk$生活主題))[[2]]+1, cumsum(table(kk$生活主題))[[3]])%>%
+  group_rows(levels(kk$生活主題)[4], cumsum(table(kk$生活主題))[[3]]+1, cumsum(table(kk$生活主題))[[4]])%>%
+  group_rows(levels(kk$生活主題)[5], cumsum(table(kk$生活主題))[[4]]+1, cumsum(table(kk$生活主題))[[5]])%>%
+  group_rows(levels(kk$生活主題)[6], cumsum(table(kk$生活主題))[[5]]+1, cumsum(table(kk$生活主題))[[6]])%>%
+  group_rows(levels(kk$生活主題)[7], cumsum(table(kk$生活主題))[[6]]+1, cumsum(table(kk$生活主題))[[7]])%>%
+  group_rows(levels(kk$生活主題)[8], cumsum(table(kk$生活主題))[[7]]+1, cumsum(table(kk$生活主題))[[8]])
+
+yn_life.prepost.plot.life(Cdat1_yn, Cdat2_yn, "生活主題生是非答對率之前後測結果比較（全部人n=146）")
+```
+
+### **5-2-1 生活主題生是非（國中生n=88）**
+```{r, fig.height=5, fig.width=10,warning=F}
+paste("樣本數 =",dim(Cdat1_yn.ju)[1])
+kk<-yn_life.prepost.table(Cdat1_yn.ju, Cdat2_yn.ju)
+kk$題號<-typee$num
+kk1<-kk%>%
+  arrange(生活主題)%>%dplyr::select(!c("知識性質","生活主題","覺察"))
+colnames(kk1)<-c("","平均答對率","標準差","平均答對率","標準差","t統計量","p-value","檢定結果")
+#rownames(kk1)<-names(ans)[1:30]
+
+kk1[,7]<-str_c(kk1[,7]%>%round(digits=3),cut(kk1[,7], breaks=c(0,0.001,0.01,0.05,1),labels=c("***","**","*","")))
+
+kk1%>%kable("html",escape = F,row.names = FALSE,booktabs = TRUE, digits=c(0,3,2,3,2,3,3,3), caption="5-2-1 生活主題生是非（國中生n=88）")%>%   
+  kable_styling(c("striped", "bordered"))%>%
+  add_header_above(c(" " = 1, "前測" = 2, "後測" = 2,"前後測成對t檢定" = 3))%>%
+  column_spec(1, bold = T)%>%
+  group_rows(levels(kk$生活主題)[1], 1, cumsum(table(kk$生活主題))[[1]])%>%
+  group_rows(levels(kk$生活主題)[2], cumsum(table(kk$生活主題))[[1]]+1, cumsum(table(kk$生活主題))[[2]])%>%
+  group_rows(levels(kk$生活主題)[3], cumsum(table(kk$生活主題))[[2]]+1, cumsum(table(kk$生活主題))[[3]])%>%
+  group_rows(levels(kk$生活主題)[4], cumsum(table(kk$生活主題))[[3]]+1, cumsum(table(kk$生活主題))[[4]])%>%
+  group_rows(levels(kk$生活主題)[5], cumsum(table(kk$生活主題))[[4]]+1, cumsum(table(kk$生活主題))[[5]])%>%
+  group_rows(levels(kk$生活主題)[6], cumsum(table(kk$生活主題))[[5]]+1, cumsum(table(kk$生活主題))[[6]])%>%
+  group_rows(levels(kk$生活主題)[7], cumsum(table(kk$生活主題))[[6]]+1, cumsum(table(kk$生活主題))[[7]])%>%
+  group_rows(levels(kk$生活主題)[8], cumsum(table(kk$生活主題))[[7]]+1, cumsum(table(kk$生活主題))[[8]])
+
+yn_life.prepost.plot.life(Cdat1_yn.ju, Cdat2_yn.ju, "生活主題生是非答對率之前後測結果比較（國中生n=88）")
+```
+
+### **5-2-2 生活主題生是非（高中生n=58）**
+```{r, fig.height=5, fig.width=10,warning=F}
+paste("樣本數 =",dim(Cdat1_yn.se)[1])
+kk<-yn_life.prepost.table(Cdat1_yn.se, Cdat2_yn.se)
+kk$題號<-typee$num
+kk1<-kk%>%
+  arrange(生活主題)%>%dplyr::select(!c("知識性質","生活主題","覺察"))
+colnames(kk1)<-c("","平均答對率","標準差","平均答對率","標準差","t統計量","p-value","檢定結果")
+#rownames(kk1)<-names(ans)[1:30]
+
+kk1[,7]<-str_c(kk1[,7]%>%round(digits=3),cut(kk1[,7], breaks=c(0,0.001,0.01,0.05,1),labels=c("***","**","*","")))
+
+kk1%>%kable("html",escape = F,row.names = FALSE,booktabs = TRUE, digits=c(3,2,3,2,3,3,3), caption="5-2-2 生活主題生是非（高中生n=58）")%>%   
+  kable_styling(c("striped", "bordered"))%>%
+  add_header_above(c(" " = 1, "前測" = 2, "後測" = 2,"前後測成對t檢定" = 3))%>%
+  column_spec(1, bold = T)%>%
+  group_rows(levels(kk$生活主題)[1], 1, cumsum(table(kk$生活主題))[[1]])%>%
+  group_rows(levels(kk$生活主題)[2], cumsum(table(kk$生活主題))[[1]]+1, cumsum(table(kk$生活主題))[[2]])%>%
+  group_rows(levels(kk$生活主題)[3], cumsum(table(kk$生活主題))[[2]]+1, cumsum(table(kk$生活主題))[[3]])%>%
+  group_rows(levels(kk$生活主題)[4], cumsum(table(kk$生活主題))[[3]]+1, cumsum(table(kk$生活主題))[[4]])%>%
+  group_rows(levels(kk$生活主題)[5], cumsum(table(kk$生活主題))[[4]]+1, cumsum(table(kk$生活主題))[[5]])%>%
+  group_rows(levels(kk$生活主題)[6], cumsum(table(kk$生活主題))[[5]]+1, cumsum(table(kk$生活主題))[[6]])%>%
+  group_rows(levels(kk$生活主題)[7], cumsum(table(kk$生活主題))[[6]]+1, cumsum(table(kk$生活主題))[[7]])%>%
+  group_rows(levels(kk$生活主題)[8], cumsum(table(kk$生活主題))[[7]]+1, cumsum(table(kk$生活主題))[[8]])
+
+yn_life.prepost.plot.life(Cdat1_yn.se, Cdat2_yn.se, "生活主題生是非答對率之前後測結果比較（高中生n=58）")
+```
+
+## **5-3-1 生活主題的表格彙整（國中生n=88 vs. 高中生n=58）**
+```{r}
+mean_score.life1<-mean_table.lifes(Cdat1_yn.ju, Cdat2_yn.ju, "生活主題")%>%as.data.frame()
+mean_score.life2<-mean_table.lifes(Cdat1_yn.se, Cdat2_yn.se, "生活主題")%>%as.data.frame()
+
+#mean_score.life2[,1:5]<-apply(mean_score.life2[,-6],2,as.numeric)
+
+#mean_score.life2[2,5:6]<-NA
+
+mean_score.life.juse<-cbind(mean_score.life1, mean_score.life2)
+rownames(mean_score.life.juse)<-levels(typee$life)
+colnames(mean_score.life.juse)<-rep(c("平均答對率","標準差","平均答對率","標準差","t統計量","p-value"),2)
+
+mean_score.life.juse[,6]<-str_c(mean_score.life.juse[,6]%>%as.numeric()%>%round(digits=3),cut(mean_score.life.juse[,6]%>%as.numeric(), breaks=c(0,0.001,0.01,0.05,1),labels=c("***","**","*","")))
+
+mean_score.life.juse[,12]<-str_c(mean_score.life.juse[,12]%>%as.numeric()%>%round(digits=3),cut(mean_score.life.juse[,12]%>%as.numeric(), breaks=c(0,0.001,0.01,0.05,1),labels=c("***","**","*","")))
+
+mean_score.life.juse%>%kable("html",escape = F,booktabs = TRUE, digits=c(3,2,3,2,3,3,3))%>%
+  kable_styling(c("striped", "bordered"))%>%
+  add_header_above(c(" " = 1, "前測" = 2, "後測" = 2,"前後測成對t檢定" = 2, "前測" = 2, "後測" = 2,"前後測成對t檢定" = 2))%>%
+  add_header_above(c(" " = 1, "國中生 (n=73)" = 6, "高中生 (n=34)" = 6))%>%
+  column_spec(1, bold = T)
+
+#write.xlsx(mean_score.life.juse,rowNames=T,"C:/Users/h2407/OneDrive/文件/1121/師培中心分析案/報表資料檔/不同生活主題生是非的整體平均（國中生n=88 vs. 高中生n=58）.xlsx")
+
+```
+
+## **5-3-2 生活主題生是非（國中生n=88 vs. 高中生n=58）**
+```{r, fig.height=5, fig.width=10,warning=F}
+kk<-yn_life.prepost.compare.table(Cdat1_yn.ju, Cdat2_yn.ju, Cdat1_yn.se, Cdat2_yn.se, 1)%>%arrange(生活主題)
+kk1<-kk%>%dplyr::select(!c("知識性質","生活主題","覺察"))
+colnames(kk1)<-c("","","平均答對率","標準差","平均答對率","標準差","t統計量","p-value","檢定結果")
+
+kk1[,8]<-str_c(kk1[,8]%>%round(digits=3),cut(kk1[,8], breaks=c(0,0.001,0.01,0.05,1),labels=c("***","**","*","")))
+
+kk1%>%kable("html",escape = F,booktabs = TRUE, digits=c(0,0,3,2,3,2,3,3,3), caption="5-3-2 生活主題生是非（國中生n=88 vs. 高中生n=58）")%>%   
+  kable_styling(c("striped", "bordered"))%>%
+  add_header_above(c(" " = 2, "前測" = 2, "後測" = 2,"前後測成對t檢定" = 3))%>%
+  column_spec(1, bold = T)%>%
+  collapse_rows(columns = 1)%>%
+  group_rows(levels(kk$生活主題)[1], 1, cumsum(table(kk$生活主題))[[1]])%>%
+  group_rows(levels(kk$生活主題)[2], cumsum(table(kk$生活主題))[[1]]+1, cumsum(table(kk$生活主題))[[2]])%>%
+  group_rows(levels(kk$生活主題)[3], cumsum(table(kk$生活主題))[[2]]+1, cumsum(table(kk$生活主題))[[3]])%>%
+  group_rows(levels(kk$生活主題)[4], cumsum(table(kk$生活主題))[[3]]+1, cumsum(table(kk$生活主題))[[4]])%>%
+  group_rows(levels(kk$生活主題)[5], cumsum(table(kk$生活主題))[[4]]+1, cumsum(table(kk$生活主題))[[5]])%>%
+  group_rows(levels(kk$生活主題)[6], cumsum(table(kk$生活主題))[[5]]+1, cumsum(table(kk$生活主題))[[6]])%>%
+  group_rows(levels(kk$生活主題)[7], cumsum(table(kk$生活主題))[[6]]+1, cumsum(table(kk$生活主題))[[7]])%>%
+  group_rows(levels(kk$生活主題)[8], cumsum(table(kk$生活主題))[[7]]+1, cumsum(table(kk$生活主題))[[8]])
+
+yn.prepost.compare.plot(res11, "生活主題生是非答對率之前後測結果比較（國中生n=88 vs. 高中生n=58）", state=1)+
+  facet_grid(cols=vars(生活主題), scales = "free", space = "free")
+```
+
+# **6. 覺察類生是非前後測變化**
+
+## **6-1-1 覺察類的表格彙整（全部人n=146）**
+```{r}
+mean_score.sense<-mean_table.lifes(Cdat1_yn, Cdat2_yn, "覺察")%>%as.data.frame()
+rownames(mean_score.sense)<-"覺察"
+colnames(mean_score.sense)<-c("平均答對率","標準差","平均答對率","標準差","t統計量","p-value")
+
+mean_score.sense[,6]<-str_c(mean_score.sense[,6]%>%as.numeric()%>%round(digits=3),cut(mean_score.sense[,6]%>%as.numeric(), breaks=c(0,0.001,0.01,0.05,1),labels=c("***","**","*","")))
+
+mean_score.sense%>%kable("html",escape = F,booktabs = TRUE, digits=c(3,2,3,2,3,3,3),caption="6-1-1 覺察類的表格彙整（全部人n=146）")%>%
+  kable_styling(c("striped", "bordered"))%>%
+  add_header_above(c(" " = 1, "前測" = 2, "後測" = 2,"前後測成對t檢定" = 2))%>%
+  column_spec(1, bold = T)
+
+#write.xlsx(mean_score.sense,rowNames=T,"C:/Users/h2407/OneDrive/文件/1121/師培中心分析案/報表資料檔/覺察類生是非的整體平均（全部人n=146）.xlsx")
+```
+
+## **6-1-2 覺察類生是非（全部人n=146）**
+```{r, fig.height=5, fig.width=10,warning=F}
+paste("樣本數 =",dim(Cdat1_yn)[1])
+kk<-yn_life.prepost.table(Cdat1_yn, Cdat2_yn)[,-1]%>%filter(覺察==1)%>%dplyr::select(!c("知識性質","生活主題","覺察"))
+colnames(kk)<-c("平均答對率","標準差","平均答對率","標準差","t統計量","p-value","檢定結果")
+
+kk[,6]<-str_c(kk[,6]%>%round(digits=3),cut(kk[,6], breaks=c(0,0.001,0.01,0.05,1),labels=c("***","**","*","")))
+
+kk%>%kable("html",escape = F,booktabs = TRUE, digits=c(3,2,3,2,3,3,3),caption="6-1-2 覺察類生是非（全部人n=146）")%>%   
+  kable_styling(c("striped", "bordered"))%>%
+  add_header_above(c(" " = 1, "前測" = 2, "後測" = 2,"前後測成對t檢定" = 3))%>%
+  column_spec(1, bold = T)%>%
+  group_rows("覺察", 1, dim(kk)[1])
+
+yn_life.prepost.plot.sense(Cdat1_yn, Cdat2_yn, "覺察類生是非答對率之前後測結果比較（全部人n=146）")
+```
+
+### **6-2-1 覺察類生是非（國中生n=88）**
+```{r, fig.height=5, fig.width=10,warning=F}
+paste("樣本數 =",dim(Cdat1_yn.ju)[1])
+kk<-yn_life.prepost.table(Cdat1_yn.ju, Cdat2_yn.ju)[,-1]%>%filter(覺察==1)%>%dplyr::select(!c("知識性質","生活主題","覺察"))
+colnames(kk)<-c("平均答對率","標準差","平均答對率","標準差","t統計量","p-value","檢定結果")
+
+kk[,6]<-str_c(kk[,6]%>%round(digits=3),cut(kk[,6], breaks=c(0,0.001,0.01,0.05,1),labels=c("***","**","*","")))
+
+kk%>%kable("html",escape = F,booktabs = TRUE, digits=c(3,2,3,2,3,3,3), caption="6-2-1 覺察類生是非（國中生n=88）")%>%   
+  kable_styling(c("striped", "bordered"))%>%
+  add_header_above(c(" " = 1, "前測" = 2, "後測" = 2,"前後測成對t檢定" = 3))%>%
+  column_spec(1, bold = T)%>%
+  group_rows("覺察", 1, dim(kk)[1])
+
+yn_life.prepost.plot.sense(Cdat1_yn.ju, Cdat2_yn.ju, "覺察類生是非答對率之前後測結果比較（國中生n=88）")
+```
+
+### **6-2-2 覺察類生是非（高中生n=58）**
+```{r, fig.height=5, fig.width=10,warning=F}
+paste("樣本數 =",dim(Cdat1_yn.se)[1])
+kk<-yn_life.prepost.table(Cdat1_yn.se, Cdat2_yn.se)[,-1]%>%filter(覺察==1)%>%dplyr::select(!c("知識性質","生活主題","覺察"))
+colnames(kk)<-c("平均答對率","標準差","平均答對率","標準差","t統計量","p-value","檢定結果")
+
+kk[,6]<-str_c(kk[,6]%>%round(digits=3),cut(kk[,6], breaks=c(0,0.001,0.01,0.05,1),labels=c("***","**","*","")))
+
+kk%>%kable("html",escape = F,booktabs = TRUE, digits=c(3,2,3,2,3,3,3), caption="6-2-2 覺察類生是非（高中生n=58）")%>%   
+  kable_styling(c("striped", "bordered"))%>%
+  add_header_above(c(" " = 1, "前測" = 2, "後測" = 2,"前後測成對t檢定" = 3))%>%
+  column_spec(1, bold = T)%>%
+  group_rows("覺察", 1, dim(kk)[1])
+
+yn_life.prepost.plot.sense(Cdat1_yn.se, Cdat2_yn.se, "覺察類生是非答對率之前後測結果比較（高中生n=58）")
+```
+
+## **6-3-1 覺察的表格彙整（國中生n=88 vs. 高中生n=58）**
+```{r}
+mean_score.sense1<-mean_table.lifes(Cdat1_yn.ju, Cdat2_yn.ju, "覺察")%>%as.data.frame()
+mean_score.sense2<-mean_table.lifes(Cdat1_yn.se, Cdat2_yn.se, "覺察")%>%as.data.frame()
+mean_score.sense.juse<-cbind(mean_score.sense1, mean_score.sense2)
+rownames(mean_score.sense.juse)<-"覺察"
+colnames(mean_score.sense.juse)<-rep(c("平均答對率","標準差","平均答對率","標準差","t統計量","p-value"),2)
+
+mean_score.sense.juse[,6]<-str_c(mean_score.sense.juse[,6]%>%as.numeric()%>%round(digits=3),cut(mean_score.sense.juse[,6]%>%as.numeric(), breaks=c(0,0.001,0.01,0.05,1),labels=c("***","**","*","")))
+
+mean_score.sense.juse[,12]<-str_c(mean_score.sense.juse[,12]%>%as.numeric()%>%round(digits=3),cut(mean_score.sense.juse[,12]%>%as.numeric(), breaks=c(0,0.001,0.01,0.05,1),labels=c("***","**","*","")))
+
+mean_score.sense.juse%>%kable("html",escape = F,booktabs = TRUE, digits=c(3,2,3,2,3,3,3), caption="6-3-1 覺察的表格彙整（國中生n=88 vs. 高中生n=58）")%>%
+  kable_styling(c("striped", "bordered"))%>%
+  add_header_above(c(" " = 1, "前測" = 2, "後測" = 2,"前後測成對t檢定" = 2, "前測" = 2, "後測" = 2,"前後測成對t檢定" = 2))%>%
+  add_header_above(c(" " = 1, "國中生 (n=88)" = 6, "高中生 (n=58)" = 6))%>%
+  column_spec(1, bold = T)
+
+#write.xlsx(mean_score.sense.juse,rowNames=T,"C:/Users/h2407/OneDrive/文件/1121/師培中心分析案/報表資料檔/覺察類生是非的整體平均（國中生n=88 vs. 高中生n=58）.xlsx")
+```
+
+## **6-3-2 覺察類生是非（國中生n=88 vs. 高中生n=58）**
+```{r, fig.height=5, fig.width=10,warning=F}
+kk<-yn_life.prepost.compare.table(Cdat1_yn.ju, Cdat2_yn.ju, Cdat1_yn.se, Cdat2_yn.se, 1)%>%filter(覺察==1)%>%dplyr::select(!c("知識性質","生活主題","覺察"))
+
+colnames(kk)<-c("","","平均答對率","標準差","平均答對率","標準差","t統計量","p-value","檢定結果")
+
+kk[,8]<-str_c(kk[,8]%>%round(digits=3),cut(kk[,8], breaks=c(0,0.001,0.01,0.05,1),labels=c("***","**","*","")))
+
+kk[,1:9]%>%kable("html",escape = F,booktabs = TRUE, digits=c(0,0,3,2,3,2,3,3,3), caption="6-3-2 覺察類生是非（國中生n=88 vs. 高中生n=58）")%>%   
+  kable_styling(c("striped", "bordered"))%>%
+  add_header_above(c(" " = 2, "前測" = 2, "後測" = 2,"前後測成對t檢定" = 3))%>%
+  column_spec(1, bold = T)%>%
+  collapse_rows(columns = 1)%>%
+  group_rows("覺察", 1, dim(kk)[1])
+
+yn.prepost.compare.plot(res11[res11$覺察==1,], "覺察類生是非答對率之前後測結果比較（國中生n=88 vs. 高中生n=58）", state=1)
+```
+
+# **根據人的特徵分組的前後測分析**
+# **7. 肥胖程度的影響分析**
+```{r}
+Cfat<-Cdat1_yn$流水號%in%eat[which(eat$`平均一餐熱量需求(kcal)`>=700),]$流水號
+Cnofat<-Cdat1_yn$流水號%in%eat[which(eat$`平均一餐熱量需求(kcal)`<700),]$流水號
+#Cfat<-eat[which(eat$`平均一餐熱量需求(kcal)`<700),]$流水號%in%Cdat1_yn$流水號
+
+Cfat.bf<-Cdat1_yn$流水號%in%eat[which(eat$`早餐總熱量(kcal)`>=500),]$流水號
+Cnofat.bf<-Cdat1_yn$流水號%in%eat[which(eat$`早餐總熱量(kcal)`<500),]$流水號
+
+# dat1_yn.fat<-dat1_yn.1[which(dat1_yn.1$流水號%in%eat[which(eat$`平均一餐熱量需求(kcal)`>=700),]$流水號),]
+# dat2_yn.fat<-dat2_yn.1[which(dat1_yn.1$流水號%in%eat[which(eat$`平均一餐熱量需求(kcal)`>=700),]$流水號),]
+```
+
+## **7-1 是非題前後測答對率（肥胖者n=20 vs. 其他人n=89）**
+```{r, fig.height=5, fig.width=10,warning=F}
+kk<-yn.prepost.compare.table(Cdat1_yn%>%filter(Cfat&(Cfat.bf|Cnofat.bf)),
+                            Cdat2_yn%>%filter(Cfat&(Cfat.bf|Cnofat.bf)),
+                            Cdat1_yn%>%filter(Cnofat&(Cfat.bf|Cnofat.bf)),
+                            Cdat2_yn%>%filter(Cnofat&(Cfat.bf|Cnofat.bf)), 2)
+
+#colnames(kk)<-c("","","平均答對率","標準差","平均答對率","標準差","t統計量","p-value","檢定結果")
+
+
+kk[,7]<-kk[,7]%>%as.numeric%>%round(digits=3)
+
+kk[,8]<-str_c(kk[,8]%>%as.numeric%>%round(digits=3),cut(kk[,8]%>%as.numeric, breaks=c(0,0.001,0.01,0.05,1),labels=c("***","**","*","")))
+
+kk%>%kable("html",escape = F,booktabs = TRUE, digits=c(0,0,3,2,3,2,3,3,3), caption="7-1 是非題前後測答對率（肥胖者n=20 vs. 其他人n=89）")%>%   
+  kable_styling(c("striped", "bordered"))%>%
+  add_header_above(c(" " = 2, "前測" = 2, "後測" = 2,"前後測成對t檢定" = 3))%>%
+  column_spec(1, bold = T)%>%
+  collapse_rows(columns = 1)%>%
+  group_rows("生是非", 1, 60)%>%
+  group_rows("技是非", 61, 80)
+
+res_fat<-yn.prepost.table(Cdat1_yn%>%filter(Cfat&(Cfat.bf|Cnofat.bf)),
+                          Cdat2_yn%>%filter(Cfat&(Cfat.bf|Cnofat.bf)))
+res_nofat<-yn.prepost.table(Cdat1_yn%>%filter(Cnofat&(Cfat.bf|Cnofat.bf)),
+                            Cdat2_yn%>%filter(Cnofat&(Cfat.bf|Cnofat.bf)))
+res2<-rbind(res_fat, res_nofat)
+
+yn.prepost.compare.plot(res2, "是非題答對率之前後測結果比較（肥胖者n=20 vs. 其他人n=89）", state=2)
+```
+
+## **7-2 知識性質生是非前後測答對率（肥胖者n=20 vs. 其他人n=89）**
+```{r, fig.height=5, fig.width=10,warning=F}
+kk<-yn_life.prepost.compare.table(Cdat1_yn%>%filter(Cfat&(Cfat.bf|Cnofat.bf)),
+                                  Cdat2_yn%>%filter(Cfat&(Cfat.bf|Cnofat.bf)),
+                                  Cdat1_yn%>%filter(Cnofat&(Cfat.bf|Cnofat.bf)),
+                                  Cdat2_yn%>%filter(Cnofat&(Cfat.bf|Cnofat.bf)),2)%>%
+  arrange(知識性質)%>%dplyr::select(!c("知識性質","生活主題","覺察"))
+
+# colnames(kk)<-c("","","平均答對率","標準差","平均答對率","標準差","t統計量","p-value","檢定結果")
+
+kk[,7]<-kk[,7]%>%as.numeric%>%round(digits=3)
+
+kk[,8]<-str_c(kk[,8]%>%as.numeric%>%round(digits=3),cut(kk[,8]%>%as.numeric, breaks=c(0,0.001,0.01,0.05,1),labels=c("***","**","*","")))
+
+kk[,1:9]%>%kable("html",escape = F,booktabs = TRUE, digits=c(0,0,3,2,3,2,3,3,3), caption="7-2 知識性質生是非前後測答對率（肥胖者n=20 vs. 其他人n=89）")%>%   
+  kable_styling(c("striped", "bordered"))%>%
+  add_header_above(c(" " = 2, "前測" = 2, "後測" = 2,"前後測成對t檢定" = 3))%>%
+  column_spec(1, bold = T)%>%
+  collapse_rows(columns = 1)%>%
+  group_rows("知識", 1, 20)%>%
+  group_rows("推論", 21, 50)%>%
+  group_rows("計算", 51, 60)
+
+res_fat<-yn_life.prepost.table(Cdat1_yn%>%filter(Cfat&(Cfat.bf|Cnofat.bf)),
+                               Cdat2_yn%>%filter(Cfat&(Cfat.bf|Cnofat.bf)))
+res_nofat<-yn_life.prepost.table(Cdat1_yn%>%filter(Cnofat&(Cfat.bf|Cnofat.bf)),
+                                 Cdat2_yn%>%filter(Cnofat&(Cfat.bf|Cnofat.bf)))
+res21<-rbind(res_fat, res_nofat)
+
+yn.prepost.compare.plot(res21, "知識性質生是非答對率之前後測結果比較（肥胖者n=20 vs. 其他人n=89）", state=2)+
+  facet_grid(cols=vars(知識性質), scales = "free", space = "free")
+```
+
+## **7-3 生活主題生是非前後測答對率（肥胖者n=20 vs. 其他人n=89）**
+```{r, fig.height=5, fig.width=10,warning=F}
+kk<-yn_life.prepost.compare.table(Cdat1_yn%>%filter(Cfat&(Cfat.bf|Cnofat.bf)),
+                                  Cdat2_yn%>%filter(Cfat&(Cfat.bf|Cnofat.bf)),
+                                  Cdat1_yn%>%filter(Cnofat&(Cfat.bf|Cnofat.bf)),
+                                  Cdat2_yn%>%filter(Cnofat&(Cfat.bf|Cnofat.bf)),2)%>%
+  arrange(生活主題)
+kk1<-kk%>%dplyr::select(!c("知識性質","生活主題","覺察"))
+colnames(kk1)<-c("","","平均答對率","標準差","平均答對率","標準差","t統計量","p-value","檢定結果")
+
+kk1[,7]<-kk1[,7]%>%as.numeric%>%round(digits=3)
+
+kk1[,8]<-str_c(kk1[,8]%>%as.numeric%>%round(digits=3),cut(kk1[,8]%>%as.numeric, breaks=c(0,0.001,0.01,0.05,1),labels=c("***","**","*","")))
+
+kk1[,1:9]%>%kable("html",escape = F,booktabs = TRUE, digits=c(0,0,3,2,3,2,3,3,3), caption="7-3 生活主題生是非前後測答對率（肥胖者n=20 vs. 其他人n=89）")%>%   
+  kable_styling(c("striped", "bordered"))%>%
+  add_header_above(c(" " = 2, "前測" = 2, "後測" = 2,"前後測成對t檢定" = 3))%>%
+  column_spec(1, bold = T)%>%
+  collapse_rows(columns = 1)%>%
+  group_rows(levels(kk$生活主題)[1], 1, cumsum(table(kk$生活主題))[[1]])%>%
+  group_rows(levels(kk$生活主題)[2], cumsum(table(kk$生活主題))[[1]]+1, cumsum(table(kk$生活主題))[[2]])%>%
+  group_rows(levels(kk$生活主題)[3], cumsum(table(kk$生活主題))[[2]]+1, cumsum(table(kk$生活主題))[[3]])%>%
+  group_rows(levels(kk$生活主題)[4], cumsum(table(kk$生活主題))[[3]]+1, cumsum(table(kk$生活主題))[[4]])%>%
+  group_rows(levels(kk$生活主題)[5], cumsum(table(kk$生活主題))[[4]]+1, cumsum(table(kk$生活主題))[[5]])%>%
+  group_rows(levels(kk$生活主題)[6], cumsum(table(kk$生活主題))[[5]]+1, cumsum(table(kk$生活主題))[[6]])%>%
+  group_rows(levels(kk$生活主題)[7], cumsum(table(kk$生活主題))[[6]]+1, cumsum(table(kk$生活主題))[[7]])%>%
+  group_rows(levels(kk$生活主題)[8], cumsum(table(kk$生活主題))[[7]]+1, cumsum(table(kk$生活主題))[[8]])
+
+yn.prepost.compare.plot(res21, "生活主題生是非答對率之前後測結果比較（肥胖者n=20 vs. 其他人n=89）", state=2)+
+  facet_grid(cols=vars(生活主題), scales = "free", space = "free")
+
+```
+
+## **7-4 覺察類生是非前後測答對率（肥胖者n=20 vs. 其他人n=89）**
+```{r, fig.height=5, fig.width=10,warning=F}
+kk<-yn_life.prepost.compare.table(Cdat1_yn%>%filter(Cfat&(Cfat.bf|Cnofat.bf)),
+                                  Cdat2_yn%>%filter(Cfat&(Cfat.bf|Cnofat.bf)),
+                                  Cdat1_yn%>%filter(Cnofat&(Cfat.bf|Cnofat.bf)),
+                                  Cdat2_yn%>%filter(Cnofat&(Cfat.bf|Cnofat.bf)),2)%>%
+  filter(覺察==1)%>%dplyr::select(!c("知識性質","生活主題","覺察"))
+
+# colnames(kk)<-c("","","平均答對率","標準差","平均答對率","標準差","t統計量","p-value","檢定結果")
+
+
+kk[,7]<-kk[,7]%>%as.numeric%>%round(digits=3)
+
+kk[,8]<-str_c(kk[,8]%>%as.numeric%>%round(digits=3),cut(kk[,8]%>%as.numeric, breaks=c(0,0.001,0.01,0.05,1),labels=c("***","**","*","")))
+
+kk[,1:9]%>%kable("html",escape = F,booktabs = TRUE, digits=c(0,0,3,2,3,2,3,3,3), caption="7-4 覺察類生是非前後測答對率（肥胖者n=20 vs. 其他人n=89）")%>%   
+  kable_styling(c("striped", "bordered"))%>%
+  add_header_above(c(" " = 2, "前測" = 2, "後測" = 2,"前後測成對t檢定" = 3))%>%
+  column_spec(1, bold = T)%>%
+  collapse_rows(columns = 1)%>%
+  group_rows("覺察", 1, dim(kk)[1])
+
+yn.prepost.compare.plot(res21[res21$覺察==1,], "覺察類生是非答對率之前後測結果比較（肥胖者n=20 vs. 其他人n=89）", state=2)
+```
+
+## **7-5 計算全部人/肥胖者/其他人彙整表格（分成生是非、技是非兩種情形）**
+
+```{r}
+mean_score<-matrix(NA,3,12)
+rownames(mean_score)<-c("全部人 (n=109)","肥胖者 (n=20)","其他人 (n=89)")
+colnames(mean_score)<-rep(c("平均答對率","標準差","平均答對率","標準差","t統計量","p-value"),2)
+
+mean_score[1,]<-mean_table(Cdat1_yn%>%filter((Cfat.bf|Cnofat.bf)),
+                           Cdat2_yn%>%filter((Cfat.bf|Cnofat.bf)))
+mean_score[2,]<-mean_table(Cdat1_yn%>%filter(Cfat&(Cfat.bf|Cnofat.bf)),
+                           Cdat2_yn%>%filter(Cfat&(Cfat.bf|Cnofat.bf)))
+mean_score[3,]<-mean_table(Cdat1_yn%>%filter(Cnofat&(Cfat.bf|Cnofat.bf)),
+                           Cdat2_yn%>%filter(Cnofat&(Cfat.bf|Cnofat.bf)))
+
+mean_score[,6]<-str_c(mean_score[,6]%>%as.numeric()%>%round(digits=3),cut(mean_score[,6]%>%as.numeric(), breaks=c(0,0.001,0.01,0.05,1),labels=c("***","**","*","")))
+
+mean_score[,12]<-str_c(mean_score[,12]%>%as.numeric()%>%round(digits=3),cut(mean_score[,12]%>%as.numeric(), breaks=c(0,0.001,0.01,0.05,1),labels=c("***","**","*","")))
+
+mean_score%>%kableExtra::kable("html",escape = F,booktabs = TRUE, caption="7-5 計算全部人/肥胖者/其他人彙整表格（分成生是非、技是非兩種情形）")%>%
+  kable_styling(c("striped", "bordered"))%>%
+  add_header_above(c(" " = 1, "前測" = 2, "後測" = 2, "前後測成對t檢定" = 2,  "前測" = 2, "後測" = 2, "前後測成對t檢定" = 2))%>%
+  add_header_above(c(" " = 1, "生是非" = 6, "技是非" = 6))%>%
+  column_spec(1, bold = T)
+
+#write.xlsx(mean_score, rowNames=T,startCol=1,"C:/Users/h2407/OneDrive/文件/1121/師培中心分析案/報表資料檔/生是非與技是非的整體平均.xlsx")
+```
+
+### **7-5-1 全部生是非、知識性質及覺察類是非題彙整表格（肥胖者n=20 vs. 其他人n=89）**
+```{r}
+kk<-mean_table_all2(Cdat1_yn%>%filter(Cfat&(Cfat.bf|Cnofat.bf)), Cdat2_yn%>%filter(Cfat&(Cfat.bf|Cnofat.bf)),
+               Cdat1_yn%>%filter(Cnofat&(Cfat.bf|Cnofat.bf)), Cdat2_yn%>%filter(Cnofat&(Cfat.bf|Cnofat.bf)), state=2)
+
+#kk<-mean_table_all(Cdat1_yn%>%filter(Cfat), Cdat2_yn%>%filter(Cfat),Cdat1_yn%>%filter(!Cfat), Cdat2_yn%>%filter(!Cfat), state=2)
+
+kk[[1]]%>%kableExtra::kable("html",escape = F,booktabs = TRUE,digits=c(0,0,3,2,3,2,3,3,3,3,3,3,3,3,3,3,3,3),caption="7-5-1 全部生是非、知識性質及覺察類是非題彙整表格（肥胖者n=20 vs. 其他人n=89）")%>%
+  kable_styling(c("striped", "bordered"))%>%
+  add_header_above(c(" " = 2, "前測" = 2, "後測" = 2,"前後測成對t檢定" = 3, "肥胖者-其他人獨立t檢定 (進步量)"=3, "肥胖者-其他人獨立t檢定 (前測)"=3, "肥胖者-其他人獨立t檢定 (後測)"=3))%>%
+  column_spec(1, bold = T)%>%
+  collapse_rows(columns = c(1,10:18))
+```
+
+### **7-5-2 全部生是非、知識性質及覺察類是非題彙整表格（肥胖者n=20 vs. 其他人n=89）**
+```{r, fig.height=5, fig.width=10,warning=F}
+yn.prepost.compare.boxplot(Cdat1_yn%>%filter(Cfat&(Cfat.bf|Cnofat.bf)),
+                           Cdat2_yn%>%filter(Cfat&(Cfat.bf|Cnofat.bf)),
+                           Cdat1_yn%>%filter(Cnofat&(Cfat.bf|Cnofat.bf)),
+                           Cdat2_yn%>%filter(Cnofat&(Cfat.bf|Cnofat.bf)), state=2, title="全部生是非、知識性質及覺察類是非題彙整表格（肥胖者n=20 vs. 其他人n=89）")
+
+```
+## **7-6 覺察類（新增版2）分析**
+### **7-6-1 覺察類（新增版2）的表格彙整（全部人n=146）**
+```{r}
+mean_score.sense<-mean_table.lifes(Cdat1_yn, Cdat2_yn, "新覺察")%>%as.data.frame()
+rownames(mean_score.sense)<-"覺察（新增版2）"
+colnames(mean_score.sense)<-c("平均答對率","標準差","平均答對率","標準差","t統計量","p-value")
+
+mean_score.sense[,6]<-str_c(mean_score.sense[,6]%>%as.numeric()%>%round(digits=3),cut(mean_score.sense[,6]%>%as.numeric(), breaks=c(0,0.001,0.01,0.05,1),labels=c("***","**","*","")))
+
+out761<-mean_score.sense%>%kable("html",escape = F,booktabs = TRUE, digits=c(3,2,3,2,3,3,3),caption="7-6-1 覺察類（新增版2）的表格彙整（全部人n=146）")%>%
+  kable_styling(c("striped", "bordered"))%>%
+  add_header_above(c(" " = 1, "前測" = 2, "後測" = 2,"前後測成對t檢定" = 2))%>%
+  column_spec(1, bold = T)
+out761
+
+#write.xlsx(mean_score.sense,rowNames=T,"C:/Users/h2407/OneDrive/文件/1121/師培中心分析案/報表資料檔/覺察類生是非的整體平均（全部人n=146）.xlsx")
+```
+
+### **7-6-2 覺察類（新增版2）生是非（國中生n=88 vs. 高中生n=58）**
+```{r, fig.height=5, fig.width=10,warning=F}
+kk<-yn_life.prepost.compare.table(Cdat1_yn.ju, Cdat2_yn.ju, Cdat1_yn.se, Cdat2_yn.se, 1)%>%filter(新覺察==1)%>%dplyr::select(!c("知識性質","生活主題","覺察"))
+
+# colnames(kk)<-c("","","平均答對率","標準差","平均答對率","標準差","t統計量","p-value","檢定結果")
+
+kk[,8]<-str_c(kk[,8]%>%round(digits=3),cut(kk[,8], breaks=c(0,0.001,0.01,0.05,1),labels=c("***","**","*","")))
+
+out762<-kk[,1:9]%>%kable("html",escape = F,booktabs = TRUE, digits=c(0,0,3,2,3,2,3,3,3), caption="7-6-2 覺察類（新增版2）生是非（國中生n=88 vs. 高中生n=58）")%>%   
+  kable_styling(c("striped", "bordered"))%>%
+  add_header_above(c(" " = 2, "前測" = 2, "後測" = 2,"前後測成對t檢定" = 3))%>%
+  column_spec(1, bold = T)%>%
+  collapse_rows(columns = 1)%>%
+  group_rows("覺察類（新增版2）（新增版2）", 1, dim(kk)[1])
+out762
+
+res_ju<-yn_life.prepost.table(Cdat1_yn.ju, Cdat2_yn.ju)
+res_se<-yn_life.prepost.table(Cdat1_yn.se, Cdat2_yn.se)
+res11<-rbind(res_ju, res_se)
+
+yn.prepost.compare.plot(res11[res11$新覺察==1,], "覺察類（新增版2）生是非答對率之前後測結果比較（國中生n=88 vs. 高中生n=58）", state=1)
+```
+
+### **7-6-2-1 全部生是非、知識性質及覺察類是非題彙整表格（國中生n=88 vs. 高中生n=58）**
+```{r}
+kk<-mean_table_all3(Cdat1_yn.ju, Cdat2_yn.ju,
+               Cdat1_yn.se, Cdat2_yn.se, state=1)
+
+kkk<-kk[[1]][9:10,]
+kkk%>%kableExtra::kable("html",escape = F, row.names = F,booktabs = TRUE,digits=c(0,0,3,2,3,2,3,3,3,3,3,3,3,3,3,3,3,3),caption="7-6-2-1 全部生是非、知識性質及覺察類是非題彙整表格（國中生n=88 vs. 高中生n=58）")%>%
+  kable_styling(c("striped", "bordered"))%>%
+  add_header_above(c(" " = 2, "前測" = 2, "後測" = 2,"前後測成對t檢定" = 3, "高中-國中獨立t檢定 (進步量)"=3, "高中-國中獨立t檢定 (前測)"=3, "高中-國中獨立t檢定 (後測)"=3))%>%
+  column_spec(1, bold = T)%>%
+  collapse_rows(columns = c(1,10:18))
+```
+
+### **7-6-3 覺察類（新增版2）生是非前後測答對率（肥胖者n=20 vs. 其他人n=89）**
+```{r, fig.height=5, fig.width=10,warning=F}
+
+kk<-yn_life.prepost.compare.table(Cdat1_yn%>%filter(Cfat&(Cfat.bf|Cnofat.bf)),
+                                  Cdat2_yn%>%filter(Cfat&(Cfat.bf|Cnofat.bf)),
+                                  Cdat1_yn%>%filter(Cnofat&(Cfat.bf|Cnofat.bf)),
+                                  Cdat2_yn%>%filter(Cnofat&(Cfat.bf|Cnofat.bf)),2)%>%
+  filter(新覺察==1)%>%dplyr::select(!c("知識性質","生活主題","覺察"))
+
+# colnames(kk)<-c("","","平均答對率","標準差","平均答對率","標準差","t統計量","p-value","檢定結果")
+
+
+kk[,7]<-kk[,7]%>%as.numeric%>%round(digits=3)
+
+kk[,8]<-str_c(kk[,8]%>%as.numeric%>%round(digits=3),cut(kk[,8]%>%as.numeric, breaks=c(0,0.001,0.01,0.05,1),labels=c("***","**","*","")))
+
+out763<-kk[,1:9]%>%kable("html",escape = F,booktabs = TRUE, digits=c(0,0,3,2,3,2,3,3,3), caption="7-6-3 覺察類（新增版2）生是非前後測答對率（肥胖者n=20 vs. 其他人n=89）")%>%   
+  kable_styling(c("striped", "bordered"))%>%
+  add_header_above(c(" " = 2, "前測" = 2, "後測" = 2,"前後測成對t檢定" = 3))%>%
+  column_spec(1, bold = T)%>%
+  collapse_rows(columns = 1)%>%
+  group_rows("覺察（新增版2）", 1, dim(kk)[1])
+out763
+
+res_fat<-yn_life.prepost.table(Cdat1_yn%>%filter(Cfat&(Cfat.bf|Cnofat.bf)),
+                               Cdat2_yn%>%filter(Cfat&(Cfat.bf|Cnofat.bf)))
+res_nofat<-yn_life.prepost.table(Cdat1_yn%>%filter(Cnofat&(Cfat.bf|Cnofat.bf)),
+                                 Cdat2_yn%>%filter(Cnofat&(Cfat.bf|Cnofat.bf)))
+res21<-rbind(res_fat, res_nofat)
+
+yn.prepost.compare.plot(res21[res21$新覺察==1,], "覺察類（新增版2）生是非答對率之前後測結果比較（肥胖者n=20 vs. 其他人n=89）", state=2)
+
+```
+### **7-6-3-1 覺察類（新增版2）整體生是非答對率（肥胖者n=20 vs. 其他人n=89）**
+```{r}
+kk<-mean_table_all3(Cdat1_yn%>%filter(Cfat&(Cfat.bf|Cnofat.bf)), Cdat2_yn%>%filter(Cfat&(Cfat.bf|Cnofat.bf)),
+               Cdat1_yn%>%filter(Cnofat&(Cfat.bf|Cnofat.bf)), Cdat2_yn%>%filter(Cnofat&(Cfat.bf|Cnofat.bf)), state=2)
+
+#kk<-mean_table_all(Cdat1_yn%>%filter(Cfat), Cdat2_yn%>%filter(Cfat),Cdat1_yn%>%filter(!Cfat), Cdat2_yn%>%filter(!Cfat), state=2)
+
+kkk<-kk[[1]][9:10,]
+
+kkk%>%kableExtra::kable("html",escape = F,booktabs = TRUE,digits=c(0,0,3,2,3,2,3,3,3,3,3,3,3,3,3,3,3,3),row.names = FALSE,caption="7-6-3-1 覺察類（新增版2）整體生是非答對率（肥胖者n=20 vs. 其他人n=89）")%>%
+  kable_styling(c("striped", "bordered"))%>%
+  add_header_above(c(" " = 2, "前測" = 2, "後測" = 2,"前後測成對t檢定" = 3, "肥胖者-其他人獨立t檢定 (進步量)"=3, "肥胖者-其他人獨立t檢定 (前測)"=3, "肥胖者-其他人獨立t檢定 (後測)"=3))%>%
+  column_spec(1, bold = T)%>%
+  collapse_rows(columns = c(1,10:18))
+```
+```{r}
+yn.sense2 <- list('全部人前後測' = out761,
+                  '國高中比較' = out762,
+                   '肥胖者/其他人比較' = out763)
+write.xlsx(yn.sense2, "./報表資料檔/0409是非題分析_覺察類新增版2.xlsx", rowNames=T, colNames=T, apprnd=T)
+
+```
+
+# **8. 早餐肥胖程度的影響分析**
+
+## **8-1 是非題前後測答對率（早餐肥胖者n=23 vs. 其他人n=86）**
+```{r, fig.height=5, fig.width=10,warning=F}
+kk<-yn.prepost.compare.table(Cdat1_yn%>%filter(Cfat.bf), Cdat2_yn%>%filter(Cfat.bf), 
+                             Cdat1_yn%>%filter(!Cfat.bf), Cdat2_yn%>%filter(!Cfat.bf), 3)
+
+colnames(kk)<-c("","","平均答對率","標準差","平均答對率","標準差","t統計量","p-value","檢定結果")
+
+
+kk[,7]<-kk[,7]%>%as.numeric%>%round(digits=3)
+
+kk[,8]<-str_c(kk[,8]%>%as.numeric%>%round(digits=3),cut(kk[,8]%>%as.numeric, breaks=c(0,0.001,0.01,0.05,1),labels=c("***","**","*","")))
+
+kk%>%kable("html",escape = F,booktabs = TRUE, digits=c(0,0,3,2,3,2,3,3,3), caption="8-1 是非題前後測答對率（早餐肥胖者n=23 vs. 其他人n=86）")%>%   
+  kable_styling(c("striped", "bordered"))%>%
+  add_header_above(c(" " = 2, "前測" = 2, "後測" = 2,"前後測成對t檢定" = 3))%>%
+  column_spec(1, bold = T)%>%
+  collapse_rows(columns = 1)%>%
+  group_rows("生是非", 1, 60)%>%
+  group_rows("技是非", 61, 80)
+
+res_fat<-yn.prepost.table(Cdat1_yn%>%filter(Cfat.bf), Cdat2_yn%>%filter(Cfat.bf))
+res_nofat<-yn.prepost.table(Cdat1_yn%>%filter(!Cfat.bf), Cdat2_yn%>%filter(!Cfat.bf))
+res2<-rbind(res_fat, res_nofat)
+
+yn.prepost.compare.plot(res2, "是非題答對率之前後測結果比較（早餐肥胖者n=23 vs. 其他人n=86）", state=3)
+```
+
+## **8-2 知識性質生是非前後測答對率（早餐肥胖者n=23 vs. 其他人n=86）**
+```{r, fig.height=5, fig.width=10,warning=F}
+kk<-yn_life.prepost.compare.table(Cdat1_yn%>%filter(Cfat.bf), Cdat2_yn%>%filter(Cfat.bf),
+                                  Cdat1_yn%>%filter(!Cfat.bf), Cdat2_yn%>%filter(!Cfat.bf),3)%>%
+  arrange(知識性質)%>%dplyr::select(!c("知識性質","生活主題","覺察"))
+
+colnames(kk)<-c("","","平均答對率","標準差","平均答對率","標準差","t統計量","p-value","檢定結果")
+
+kk[,7]<-kk[,7]%>%as.numeric%>%round(digits=3)
+
+kk[,8]<-str_c(kk[,8]%>%as.numeric%>%round(digits=3),cut(kk[,8]%>%as.numeric, breaks=c(0,0.001,0.01,0.05,1),labels=c("***","**","*","")))
+
+kk%>%kable("html",escape = F,booktabs = TRUE, digits=c(0,0,3,2,3,2,3,3,3), caption="8-2 知識性質生是非前後測答對率（早餐肥胖者n=23 vs. 其他人n=86）")%>%   
+  kable_styling(c("striped", "bordered"))%>%
+  add_header_above(c(" " = 2, "前測" = 2, "後測" = 2,"前後測成對t檢定" = 3))%>%
+  column_spec(1, bold = T)%>%
+  collapse_rows(columns = 1)%>%
+  group_rows("知識", 1, 20)%>%
+  group_rows("推論", 21, 50)%>%
+  group_rows("計算", 51, 60)
+
+res_fat<-yn_life.prepost.table(Cdat1_yn%>%filter(Cfat.bf), Cdat2_yn%>%filter(Cfat.bf))
+res_nofat<-yn_life.prepost.table(Cdat1_yn%>%filter(!Cfat.bf), Cdat2_yn%>%filter(!Cfat.bf))
+res21<-rbind(res_fat, res_nofat)
+
+yn.prepost.compare.plot(res21, "知識性質生是非答對率之前後測結果比較（早餐肥胖者n=23 vs. 其他人n=86）", state=3)+
+  facet_grid(cols=vars(知識性質), scales = "free", space = "free")
+```
+
+## **8-3 生活主題生是非前後測答對率（早餐肥胖者n=23 vs. 其他人n=86）**
+```{r, fig.height=5, fig.width=10,warning=F}
+kk<-yn_life.prepost.compare.table(Cdat1_yn%>%filter(Cfat.bf), Cdat2_yn%>%filter(Cfat.bf),
+                                  Cdat1_yn%>%filter(!Cfat.bf), Cdat2_yn%>%filter(!Cfat.bf),3)%>%
+  arrange(生活主題)
+kk1<-kk%>%dplyr::select(!c("知識性質","生活主題","覺察"))
+colnames(kk1)<-c("","","平均答對率","標準差","平均答對率","標準差","t統計量","p-value","檢定結果")
+
+kk1[,7]<-kk1[,7]%>%as.numeric%>%round(digits=3)
+
+kk1[,8]<-str_c(kk1[,8]%>%as.numeric%>%round(digits=3),cut(kk1[,8]%>%as.numeric, breaks=c(0,0.001,0.01,0.05,1),labels=c("***","**","*","")))
+
+kk1%>%kable("html",escape = F,booktabs = TRUE, digits=c(0,0,3,2,3,2,3,3,3), caption="8-3 生活主題生是非前後測答對率（早餐肥胖者n=23 vs. 其他人n=86）")%>%   
+  kable_styling(c("striped", "bordered"))%>%
+  add_header_above(c(" " = 2, "前測" = 2, "後測" = 2,"前後測成對t檢定" = 3))%>%
+  column_spec(1, bold = T)%>%
+  collapse_rows(columns = 1)%>%
+  group_rows(levels(kk$生活主題)[1], 1, cumsum(table(kk$生活主題))[[1]])%>%
+  group_rows(levels(kk$生活主題)[2], cumsum(table(kk$生活主題))[[1]]+1, cumsum(table(kk$生活主題))[[2]])%>%
+  group_rows(levels(kk$生活主題)[3], cumsum(table(kk$生活主題))[[2]]+1, cumsum(table(kk$生活主題))[[3]])%>%
+  group_rows(levels(kk$生活主題)[4], cumsum(table(kk$生活主題))[[3]]+1, cumsum(table(kk$生活主題))[[4]])%>%
+  group_rows(levels(kk$生活主題)[5], cumsum(table(kk$生活主題))[[4]]+1, cumsum(table(kk$生活主題))[[5]])%>%
+  group_rows(levels(kk$生活主題)[6], cumsum(table(kk$生活主題))[[5]]+1, cumsum(table(kk$生活主題))[[6]])%>%
+  group_rows(levels(kk$生活主題)[7], cumsum(table(kk$生活主題))[[6]]+1, cumsum(table(kk$生活主題))[[7]])%>%
+  group_rows(levels(kk$生活主題)[8], cumsum(table(kk$生活主題))[[7]]+1, cumsum(table(kk$生活主題))[[8]])
+
+yn.prepost.compare.plot(res21, "生活主題生是非答對率之前後測結果比較（早餐肥胖者n=23 vs. 其他人n=86）", state=3)+
+  facet_grid(cols=vars(生活主題), scales = "free", space = "free")
+```
+
+## **8-4 覺察類生是非前後測答對率（早餐肥胖者n=23 vs. 其他人n=86）**
+```{r, fig.height=5, fig.width=10,warning=F}
+kk<-yn_life.prepost.compare.table(Cdat1_yn%>%filter(Cfat.bf), Cdat2_yn%>%filter(Cfat.bf),
+                                  Cdat1_yn%>%filter(!Cfat.bf), Cdat2_yn%>%filter(!Cfat.bf),3)%>%
+  filter(覺察==1)%>%dplyr::select(!c("知識性質","生活主題","覺察"))
+
+colnames(kk)<-c("","","平均答對率","標準差","平均答對率","標準差","t統計量","p-value","檢定結果")
+
+kk[,7]<-kk[,7]%>%as.numeric%>%round(digits=3)
+
+kk[,8]<-str_c(kk[,8]%>%as.numeric%>%round(digits=3),cut(kk[,8]%>%as.numeric, breaks=c(0,0.001,0.01,0.05,1),labels=c("***","**","*","")))
+
+kk%>%kable("html",escape = F,booktabs = TRUE, digits=c(0,0,3,2,3,2,3,3,3), caption="8-4 覺察類生是非前後測答對率（早餐肥胖者n=23 vs. 其他人n=86）")%>%   
+  kable_styling(c("striped", "bordered"))%>%
+  add_header_above(c(" " = 2, "前測" = 2, "後測" = 2,"前後測成對t檢定" = 3))%>%
+  column_spec(1, bold = T)%>%
+  collapse_rows(columns = 1)%>%
+  group_rows("覺察", 1, dim(kk)[1])
+
+yn.prepost.compare.plot(res21[res21$覺察==1,], "覺察類生是非答對率之前後測結果比較（早餐肥胖者n=23 vs. 其他人n=86）", state = 3)
+```
+
+## **8-5 計算全部人/早餐肥胖者/其他人彙整表格（分成生是非、技是非兩種情形）**
+```{r}
+mean_score<-matrix(NA,3,12)
+rownames(mean_score)<-c("全部人 (n=109)","早餐肥胖者 (n=23)","其他人 (n=86)")
+colnames(mean_score)<-rep(c("平均答對率","標準差","平均答對率","標準差","t統計量","p-value"),2)
+
+mean_score[1,]<-mean_table(Cdat1_yn%>%filter(Cfat.bf|Cnofat.bf), Cdat2_yn%>%filter(Cfat.bf|Cnofat.bf))
+mean_score[2,]<-mean_table(Cdat1_yn%>%filter(Cfat.bf), Cdat2_yn%>%filter(Cfat.bf))
+mean_score[3,]<-mean_table(Cdat1_yn%>%filter(Cnofat.bf), Cdat2_yn%>%filter(Cnofat.bf))
+
+mean_score[,6]<-str_c(mean_score[,6]%>%as.numeric()%>%round(digits=3),cut(mean_score[,6]%>%as.numeric(), breaks=c(0,0.001,0.01,0.05,1),labels=c("***","**","*","")))
+
+mean_score[,12]<-str_c(mean_score[,12]%>%as.numeric()%>%round(digits=3),cut(mean_score[,12]%>%as.numeric(), breaks=c(0,0.001,0.01,0.05,1),labels=c("***","**","*","")))
+
+mean_score%>%kableExtra::kable("html",escape = F,booktabs = TRUE, caption="8-5 計算全部人/早餐肥胖者/其他人彙整表格（分成生是非、技是非兩種情形）")%>%
+  kable_styling(c("striped", "bordered"))%>%
+  add_header_above(c(" " = 1, "前測" = 2, "後測" = 2, "前後測成對t檢定" = 2,  "前測" = 2, "後測" = 2, "前後測成對t檢定" = 2))%>%
+  add_header_above(c(" " = 1, "生是非" = 6, "技是非" = 6))%>%
+  column_spec(1, bold = T)
+
+#write.xlsx(mean_score, rowNames=T,startCol=1,"C:/Users/h2407/OneDrive/文件/1121/師培中心分析案/報表資料檔/生是非與技是非的整體平均.xlsx")
+```
+
+### **8-5-1 全部生是非、知識性質及覺察類是非題彙整表格（早餐肥胖者n=23 vs. 其他人n=86）**
+```{r}
+kk<-mean_table_all2(Cdat1_yn%>%filter(Cfat.bf), Cdat2_yn%>%filter(Cfat.bf),
+                   Cdat1_yn%>%filter(Cnofat.bf), Cdat2_yn%>%filter(Cnofat.bf), state=3)
+
+kk[[1]]%>%kableExtra::kable("html",escape = F,booktabs = TRUE,digits=c(0,0,3,2,3,2,3,3,3,3,3,3,3,3,3,3,3,3),caption="8-5-1 全部生是非、知識性質及覺察類是非題彙整表格（早餐肥胖者n=23 vs. 其他人n=86）")%>%
+  kable_styling(c("striped", "bordered"))%>%
+  add_header_above(c(" " = 2, "前測" = 2, "後測" = 2,"前後測成對t檢定" = 3, "早餐肥胖者-其他人獨立t檢定 (進步量)"=3, "早餐肥胖者-其他人獨立t檢定 (前測)"=3, "早餐肥胖者-其他人獨立t檢定 (後測)"=3))%>%
+  column_spec(1, bold = T)%>%
+  collapse_rows(columns = c(1,10:18))
+```
+
+### **8-5-2 全部生是非、知識性質及覺察類是非題盒形圖（早餐肥胖者n=23 vs. 其他人n=86）**
+```{r, fig.height=5, fig.width=10,warning=F}
+yn.prepost.compare.boxplot(Cdat1_yn%>%filter(Cfat.bf), Cdat2_yn%>%filter(Cfat.bf),
+                   Cdat1_yn%>%filter(Cnofat.bf), Cdat2_yn%>%filter(Cnofat.bf), state=3, 
+                   title="全部生是非、知識性質及覺察類是非題盒形圖（早餐肥胖者n=23 vs. 其他人n=86）")
+
+```
+
+# **9. 性別的影響分析**
+```{r}
+Cboy<-Cdat1_yn$流水號%in%(eat%>%filter(性別=="男"))$流水號
+```
+
+## **9-1 是非題前後測答對率（男n=79 vs. 女n=67）**
+```{r, fig.height=5, fig.width=10,warning=F}
+kk<-yn.prepost.compare.table(Cdat1_yn%>%filter(Cboy), Cdat2_yn%>%filter(Cboy), 
+                             Cdat1_yn%>%filter(!Cboy), Cdat2_yn%>%filter(!Cboy), state=4)
+
+colnames(kk)<-c("","","平均答對率","標準差","平均答對率","標準差","t統計量","p-value","檢定結果")
+
+
+kk[,7]<-kk[,7]%>%as.numeric%>%round(digits=3)
+
+kk[,8]<-str_c(kk[,8]%>%as.numeric%>%round(digits=3),cut(kk[,8]%>%as.numeric, breaks=c(0,0.001,0.01,0.05,1),labels=c("***","**","*","")))
+
+kk%>%kable("html",escape = F,booktabs = TRUE, digits=c(0,0,3,2,3,2,3,3,3), caption="9-1 是非題前後測答對率（男n=79 vs. 女n=67）")%>%   
+  kable_styling(c("striped", "bordered"))%>%
+  add_header_above(c(" " = 2, "前測" = 2, "後測" = 2,"前後測成對t檢定" = 3))%>%
+  column_spec(1, bold = T)%>%
+  collapse_rows(columns = 1)%>%
+  group_rows("生是非", 1, 60)%>%
+  group_rows("技是非", 61, 80)
+
+res_boy<-yn.prepost.table(Cdat1_yn%>%filter(Cboy), Cdat2_yn%>%filter(Cboy))
+res_girl<-yn.prepost.table(Cdat1_yn%>%filter(!Cboy), Cdat2_yn%>%filter(!Cboy))
+res2<-rbind(res_boy, res_girl)
+
+yn.prepost.compare.plot(res2, "是非題答對率之前後測結果比較（男n=79 vs. 女n=67）", state=4)
+```
+
+## **9-2 知識性質生是非前後測答對率（男n=79 vs. 女n=67）**
+```{r, fig.height=5, fig.width=10,warning=F}
+kk<-yn_life.prepost.compare.table(Cdat1_yn%>%filter(Cboy), Cdat2_yn%>%filter(Cboy),
+                                  Cdat1_yn%>%filter(!Cboy), Cdat2_yn%>%filter(!Cboy),state=4)%>%
+  arrange(知識性質)%>%dplyr::select(!c("知識性質","生活主題","覺察"))
+
+colnames(kk)<-c("","","平均答對率","標準差","平均答對率","標準差","t統計量","p-value","檢定結果")
+
+kk[,7]<-kk[,7]%>%as.numeric%>%round(digits=3)
+
+kk[,8]<-str_c(kk[,8]%>%as.numeric%>%round(digits=3),cut(kk[,8]%>%as.numeric, breaks=c(0,0.001,0.01,0.05,1),labels=c("***","**","*","")))
+
+kk%>%kable("html",escape = F,booktabs = TRUE, digits=c(0,0,3,2,3,2,3,3,3), caption="9-2 知識性質生是非前後測答對率（男n=79 vs. 女n=67）")%>%   
+  kable_styling(c("striped", "bordered"))%>%
+  add_header_above(c(" " = 2, "前測" = 2, "後測" = 2,"前後測成對t檢定" = 3))%>%
+  column_spec(1, bold = T)%>%
+  collapse_rows(columns = 1)%>%
+  group_rows("知識", 1, 20)%>%
+  group_rows("推論", 21, 50)%>%
+  group_rows("計算", 51, 60)
+
+res_boy<-yn_life.prepost.table(Cdat1_yn%>%filter(Cboy), Cdat2_yn%>%filter(Cboy))
+res_girl<-yn_life.prepost.table(Cdat1_yn%>%filter(!Cboy), Cdat2_yn%>%filter(!Cboy))
+res21<-rbind(res_boy, res_girl)
+
+yn.prepost.compare.plot(res21, "知識性質生是非答對率之前後測結果比較（男n=79 vs. 女n=67）", state=4)+
+  facet_grid(cols=vars(知識性質), scales = "free", space = "free")
+```
+
+## **9-3 生活主題生是非前後測答對率（男n=79 vs. 女n=67）**
+```{r, fig.height=5, fig.width=10,warning=F}
+kk<-yn_life.prepost.compare.table(Cdat1_yn%>%filter(Cboy), Cdat2_yn%>%filter(Cboy),
+                                  Cdat1_yn%>%filter(!Cboy), Cdat2_yn%>%filter(!Cboy), state=4)%>%
+  arrange(生活主題)
+kk1<-kk%>%dplyr::select(!c("知識性質","生活主題","覺察"))
+colnames(kk1)<-c("","","平均答對率","標準差","平均答對率","標準差","t統計量","p-value","檢定結果")
+
+kk1[,7]<-kk1[,7]%>%as.numeric%>%round(digits=3)
+
+kk1[,8]<-str_c(kk1[,8]%>%as.numeric%>%round(digits=3),cut(kk1[,8]%>%as.numeric, breaks=c(0,0.001,0.01,0.05,1),labels=c("***","**","*","")))
+
+kk1%>%kable("html",escape = F,booktabs = TRUE, digits=c(0,0,3,2,3,2,3,3,3), caption="9-3 生活主題生是非前後測答對率（男n=79 vs. 女n=67）")%>%   
+  kable_styling(c("striped", "bordered"))%>%
+  add_header_above(c(" " = 2, "前測" = 2, "後測" = 2,"前後測成對t檢定" = 3))%>%
+  column_spec(1, bold = T)%>%
+  collapse_rows(columns = 1)%>%
+  group_rows(levels(kk$生活主題)[1], 1, cumsum(table(kk$生活主題))[[1]])%>%
+  group_rows(levels(kk$生活主題)[2], cumsum(table(kk$生活主題))[[1]]+1, cumsum(table(kk$生活主題))[[2]])%>%
+  group_rows(levels(kk$生活主題)[3], cumsum(table(kk$生活主題))[[2]]+1, cumsum(table(kk$生活主題))[[3]])%>%
+  group_rows(levels(kk$生活主題)[4], cumsum(table(kk$生活主題))[[3]]+1, cumsum(table(kk$生活主題))[[4]])%>%
+  group_rows(levels(kk$生活主題)[5], cumsum(table(kk$生活主題))[[4]]+1, cumsum(table(kk$生活主題))[[5]])%>%
+  group_rows(levels(kk$生活主題)[6], cumsum(table(kk$生活主題))[[5]]+1, cumsum(table(kk$生活主題))[[6]])%>%
+  group_rows(levels(kk$生活主題)[7], cumsum(table(kk$生活主題))[[6]]+1, cumsum(table(kk$生活主題))[[7]])%>%
+  group_rows(levels(kk$生活主題)[8], cumsum(table(kk$生活主題))[[7]]+1, cumsum(table(kk$生活主題))[[8]])
+
+yn.prepost.compare.plot(res21, "生活主題生是非答對率之前後測結果比較（男n=79 vs. 女n=67）", state=4)+
+  facet_grid(cols=vars(生活主題), scales = "free", space = "free")
+```
+
+## **9-4 覺察類生是非前後測答對率（男n=79 vs. 女n=67）**
+```{r, fig.height=5, fig.width=10,warning=F}
+kk<-yn_life.prepost.compare.table(Cdat1_yn%>%filter(Cboy), Cdat2_yn%>%filter(Cboy),
+                                  Cdat1_yn%>%filter(!Cboy), Cdat2_yn%>%filter(!Cboy), state=4)%>%
+  filter(覺察==1)%>%dplyr::select(!c("知識性質","生活主題","覺察"))
+
+colnames(kk)<-c("","","平均答對率","標準差","平均答對率","標準差","t統計量","p-value","檢定結果")
+
+
+kk[,7]<-kk[,7]%>%as.numeric%>%round(digits=3)
+
+kk[,8]<-str_c(kk[,8]%>%as.numeric%>%round(digits=3),cut(kk[,8]%>%as.numeric, breaks=c(0,0.001,0.01,0.05,1),labels=c("***","**","*","")))
+
+kk%>%kable("html",escape = F,booktabs = TRUE, digits=c(0,0,3,2,3,2,3,3,3), caption="9-4 覺察類生是非前後測答對率（男n=79 vs. 女n=67）")%>%   
+  kable_styling(c("striped", "bordered"))%>%
+  add_header_above(c(" " = 2, "前測" = 2, "後測" = 2,"前後測成對t檢定" = 3))%>%
+  column_spec(1, bold = T)%>%
+  collapse_rows(columns = 1)%>%
+  group_rows("覺察", 1, dim(kk)[1])
+
+yn.prepost.compare.plot(res21[res21$覺察==1,], "覺察類生是非答對率之前後測結果比較（男n=79 vs. 女n=67）", state=4)
+```
+
+## **9-5 計算全部人/男/女彙整表格（分成生是非、技是非兩種情形）**
+
+```{r}
+mean_score<-matrix(NA,3,12)
+rownames(mean_score)<-c("全部人 (n=146)","男 (n=79)","女 (n=67)")
+colnames(mean_score)<-rep(c("平均答對率","標準差","平均答對率","標準差","t統計量","p-value"),2)
+
+mean_score[1,]<-mean_table(Cdat1_yn, Cdat2_yn)
+mean_score[2,]<-mean_table(Cdat1_yn%>%filter(Cboy), Cdat2_yn%>%filter(Cboy))
+mean_score[3,]<-mean_table(Cdat1_yn%>%filter(!Cboy), Cdat2_yn%>%filter(!Cboy))
+
+mean_score[,6]<-str_c(mean_score[,6]%>%as.numeric()%>%round(digits=3),cut(mean_score[,6]%>%as.numeric(), breaks=c(0,0.001,0.01,0.05,1),labels=c("***","**","*","")))
+
+mean_score[,12]<-str_c(mean_score[,12]%>%as.numeric()%>%round(digits=3),cut(mean_score[,12]%>%as.numeric(), breaks=c(0,0.001,0.01,0.05,1),labels=c("***","**","*","")))
+
+mean_score%>%kableExtra::kable("html",escape = F,booktabs = TRUE, caption="9-5 計算全部人/男/女彙整表格（分成生是非、技是非兩種情形）")%>%
+  kable_styling(c("striped", "bordered"))%>%
+  add_header_above(c(" " = 1, "前測" = 2, "後測" = 2, "前後測成對t檢定" = 2,  "前測" = 2, "後測" = 2, "前後測成對t檢定" = 2))%>%
+  add_header_above(c(" " = 1, "生是非" = 6, "技是非" = 6))%>%
+  column_spec(1, bold = T)
+
+#write.xlsx(mean_score, rowNames=T,startCol=1,"C:/Users/h2407/OneDrive/文件/1121/師培中心分析案/報表資料檔/生是非與技是非的整體平均.xlsx")
+```
+
+```{r}
+mean_score<-matrix(NA,2,12)
+rownames(mean_score)<-c("前測","後測")
+colnames(mean_score)<-rep(c("平均答對率","標準差","平均答對率","標準差","t統計量","p-value"),2)
+
+mean_score[1,]<-mean_table(Cdat1_yn%>%filter(Cboy), Cdat1_yn%>%filter(!Cboy),pair=F)
+mean_score[2,]<-mean_table(Cdat2_yn%>%filter(Cboy), Cdat2_yn%>%filter(!Cboy),pair=F)
+
+mean_score[,6]<-str_c(mean_score[,6]%>%as.numeric()%>%round(digits=3),cut(mean_score[,6]%>%as.numeric(), breaks=c(0,0.001,0.01,0.05,1),labels=c("***","**","*","")))
+
+mean_score[,12]<-str_c(mean_score[,12]%>%as.numeric()%>%round(digits=3),cut(mean_score[,12]%>%as.numeric(), breaks=c(0,0.001,0.01,0.05,1),labels=c("***","**","*","")))
+
+mean_score%>%kableExtra::kable("html",escape = F,booktabs = TRUE, caption="9-5-0 計算全部人/男/女彙整表格（分成生是非、技是非兩種情形）")%>%
+  kable_styling(c("striped", "bordered"))%>%
+  add_header_above(c(" " = 1, "男生" = 2, "女生" = 2, "女-男獨立t檢定" = 2,  "男生" = 2, "女生" = 2, "女-男獨立t檢定" = 2))%>%
+  add_header_above(c(" " = 1, "生是非" = 6, "技是非" = 6))%>%
+  column_spec(1, bold = T)
+
+#write.xlsx(mean_score, rowNames=T,startCol=1,"C:/Users/h2407/OneDrive/文件/1121/師培中心分析案/報表資料檔/生是非與技是非的整體平均.xlsx")
+```
+
+### **9-5-1 全部生是非、知識性質及覺察類是非題彙整表格（男n=79 vs. 女n=67）**
+```{r}
+kk<-mean_table_all2(Cdat1_yn%>%filter(Cboy), Cdat2_yn%>%filter(Cboy),
+                   Cdat1_yn%>%filter(!Cboy), Cdat2_yn%>%filter(!Cboy), state=4)
+
+kk[[1]]%>%kableExtra::kable("html",escape = F,booktabs = TRUE,digits=c(0,0,3,2,3,2,3,3,3,3,3,3,3,3,3,3,3,3),caption="9-5-1 全部生是非、知識性質及覺察類是非題彙整表格（男n=79 vs. 女n=67）")%>%
+  kable_styling(c("striped", "bordered"))%>%
+  add_header_above(c(" " = 2, "前測" = 2, "後測" = 2,"前後測成對t檢定" = 3, "男-女獨立t檢定 (進步量)"=3, "男-女獨立t檢定 (前測)"=3, "男-女獨立t檢定 (後測)"=3))%>%
+  column_spec(1, bold = T)%>%
+  collapse_rows(columns = c(1,10:18))
+```
+
+### **9-5-2 全部生是非、知識性質及覺察類是非題盒形圖（男n=79 vs. 女n=67）**
+```{r, fig.height=5, fig.width=10,warning=F}
+yn.prepost.compare.boxplot(Cdat1_yn%>%filter(Cboy), Cdat2_yn%>%filter(Cboy),
+                   Cdat1_yn%>%filter(!Cboy), Cdat2_yn%>%filter(!Cboy), state=4,
+                   title="全部生是非、知識性質及覺察類是非題盒形圖（男n=79 vs. 女n=67）")
+```
+
+# **10. 早餐地點的影響分析**
+```{r}
+C711<-Cdat1_yn$流水號%in%(eat%>%filter(可能早餐來源%in%str_subset(eat$可能早餐來源%>%unique(),"超商")))$流水號
+Cbf<-Cdat1_yn$流水號%in%(eat%>%filter(可能早餐來源%in%str_subset(eat$可能早餐來源%>%unique(),"傳統早餐店")))$流水號
+Chome<-Cdat1_yn$流水號%in%(eat%>%filter(可能早餐來源%in%str_subset(eat$可能早餐來源%>%unique(),"家裡")))$流水號
+```
+
+## **10-1 是非題前後測答對率（超商n=75 vs. 早餐店n=17 vs. 家裡n=17）**
+```{r, fig.height=5, fig.width=13,warning=F}
+kk<-yn.prepost.compare.table(Cdat1_yn%>%filter(C711&(Cfat.bf|Cnofat.bf)), Cdat2_yn%>%filter(C711&(Cfat.bf|Cnofat.bf)), 
+                             Cdat1_yn%>%filter(Cbf&(Cfat.bf|Cnofat.bf)), Cdat2_yn%>%filter(Cbf&(Cfat.bf|Cnofat.bf)), 
+                             data_c1=Cdat1_yn%>%filter(Chome&(Cfat.bf|Cnofat.bf)),
+                             data_c2=Cdat2_yn%>%filter(Chome&(Cfat.bf|Cnofat.bf)), state=5)
+
+colnames(kk)<-c("","","平均答對率","標準差","平均答對率","標準差","t統計量","p-value","檢定結果")
+
+
+kk[,7]<-kk[,7]%>%as.numeric%>%round(digits=3)
+
+kk[,8]<-str_c(kk[,8]%>%as.numeric%>%round(digits=3),cut(kk[,8]%>%as.numeric, breaks=c(0,0.001,0.01,0.05,1),labels=c("***","**","*","")))
+
+kk%>%kable("html",escape = F,booktabs = TRUE, digits=c(0,0,3,2,3,2,3,3,3), caption="10-1 是非題前後測答對率（超商n=75 vs. 早餐店n=17 vs. 家裡n=17）")%>%   
+  kable_styling(c("striped", "bordered"))%>%
+  add_header_above(c(" " = 2, "前測" = 2, "後測" = 2,"前後測成對t檢定" = 3))%>%
+  column_spec(1, bold = T)%>%
+  collapse_rows(columns = 1)%>%
+  group_rows("生是非", 1, 30*3)%>%
+  group_rows("技是非", 30*3+1, 30*4)
+
+res_711<-yn.prepost.table(Cdat1_yn%>%filter(C711&(Cfat.bf|Cnofat.bf)), Cdat2_yn%>%filter(C711&(Cfat.bf|Cnofat.bf)))
+res_bf<-yn.prepost.table(Cdat1_yn%>%filter(Cbf&(Cfat.bf|Cnofat.bf)), Cdat2_yn%>%filter(Cbf&(Cfat.bf|Cnofat.bf)))
+res_home<-yn.prepost.table(Cdat1_yn%>%filter(Chome&(Cfat.bf|Cnofat.bf)), Cdat2_yn%>%filter(Chome&(Cfat.bf|Cnofat.bf)))
+res2<-rbind(res_711, res_bf, res_home)
+
+yn.prepost.compare.plot(res2, "是非題答對率之前後測結果比較（超商n=75 vs. 早餐店n=17 vs. 家裡n=17）", state=5)
+```
+
+## **10-2 知識性質生是非前後測答對率（超商n=75 vs. 早餐店n=17 vs. 家裡n=17）**
+```{r, fig.height=5, fig.width=13,warning=F}
+kk<-yn_life.prepost.compare.table(Cdat1_yn%>%filter(C711&(Cfat.bf|Cnofat.bf)), Cdat2_yn%>%filter(C711&(Cfat.bf|Cnofat.bf)), 
+                             Cdat1_yn%>%filter(Cbf&(Cfat.bf|Cnofat.bf)), Cdat2_yn%>%filter(Cbf&(Cfat.bf|Cnofat.bf)), 
+                             data_c1=Cdat1_yn%>%filter(Chome&(Cfat.bf|Cnofat.bf)),
+                             data_c2=Cdat2_yn%>%filter(Chome&(Cfat.bf|Cnofat.bf)),state=5)%>%
+  arrange(知識性質)%>%dplyr::select(!c("知識性質","生活主題","覺察"))
+
+colnames(kk)<-c("","","平均答對率","標準差","平均答對率","標準差","t統計量","p-value","檢定結果")
+
+kk[,7]<-kk[,7]%>%as.numeric%>%round(digits=3)
+
+kk[,8]<-str_c(kk[,8]%>%as.numeric%>%round(digits=3),cut(kk[,8]%>%as.numeric, breaks=c(0,0.001,0.01,0.05,1),labels=c("***","**","*","")))
+
+kk%>%kable("html",escape = F,booktabs = TRUE, digits=c(0,0,3,2,3,2,3,3,3), caption="10-2 知識性質生是非前後測答對率（超商n=75 vs. 早餐店n=17 vs. 家裡n=17）")%>%   
+  kable_styling(c("striped", "bordered"))%>%
+  add_header_above(c(" " = 2, "前測" = 2, "後測" = 2,"前後測成對t檢定" = 3))%>%
+  column_spec(1, bold = T)%>%
+  collapse_rows(columns = 1)%>%
+  group_rows("知識", 1, 10*3)%>%
+  group_rows("推論", 10*3+1, 25*3)%>%
+  group_rows("計算", 25*3+1, 30*3)
+
+res_711<-yn_life.prepost.table(Cdat1_yn%>%filter(C711&(Cfat.bf|Cnofat.bf)), Cdat2_yn%>%filter(C711&(Cfat.bf|Cnofat.bf)))
+res_bf<-yn_life.prepost.table(Cdat1_yn%>%filter(Cbf&(Cfat.bf|Cnofat.bf)), Cdat2_yn%>%filter(Cbf&(Cfat.bf|Cnofat.bf)))
+res_home<-yn_life.prepost.table(Cdat1_yn%>%filter(Chome&(Cfat.bf|Cnofat.bf)), Cdat2_yn%>%filter(Chome&(Cfat.bf|Cnofat.bf)))
+res21<-rbind(res_711, res_bf, res_home)
+
+yn.prepost.compare.plot(res21, "知識性質生是非答對率之前後測結果比較（超商n=75 vs. 早餐店n=17 vs. 家裡n=17）", state=5)+
+  facet_grid(cols=vars(知識性質), scales = "free", space = "free")
+```
+
+## **10-3 生活主題生是非前後測答對率（超商n=75 vs. 早餐店n=17 vs. 家裡n=17）**
+```{r, fig.height=5, fig.width=13,warning=F}
+kk<-yn_life.prepost.compare.table(Cdat1_yn%>%filter(C711&(Cfat.bf|Cnofat.bf)), Cdat2_yn%>%filter(C711&(Cfat.bf|Cnofat.bf)), 
+                             Cdat1_yn%>%filter(Cbf&(Cfat.bf|Cnofat.bf)), Cdat2_yn%>%filter(Cbf&(Cfat.bf|Cnofat.bf)), 
+                             data_c1=Cdat1_yn%>%filter(Chome&(Cfat.bf|Cnofat.bf)),
+                             data_c2=Cdat2_yn%>%filter(Chome&(Cfat.bf|Cnofat.bf)), state=5)%>%
+  arrange(生活主題)
+kk1<-kk%>%dplyr::select(!c("知識性質","生活主題","覺察"))
+colnames(kk1)<-c("","","平均答對率","標準差","平均答對率","標準差","t統計量","p-value","檢定結果")
+
+kk1[,7]<-kk1[,7]%>%as.numeric%>%round(digits=3)
+
+kk1[,8]<-str_c(kk1[,8]%>%as.numeric%>%round(digits=3),cut(kk1[,8]%>%as.numeric, breaks=c(0,0.001,0.01,0.05,1),labels=c("***","**","*","")))
+
+kk1%>%kable("html",escape = F,booktabs = TRUE, digits=c(0,0,3,2,3,2,3,3,3), caption="10-3 生活主題生是非前後測答對率（超商n=75 vs. 早餐店n=17 vs. 家裡n=17）")%>%   
+  kable_styling(c("striped", "bordered"))%>%
+  add_header_above(c(" " = 2, "前測" = 2, "後測" = 2,"前後測成對t檢定" = 3))%>%
+  column_spec(1, bold = T)%>%
+  collapse_rows(columns = 1)%>%
+  group_rows(levels(kk$生活主題)[1], 1, cumsum(table(kk$生活主題))[[1]])%>%
+  group_rows(levels(kk$生活主題)[2], cumsum(table(kk$生活主題))[[1]]+1, cumsum(table(kk$生活主題))[[2]])%>%
+  group_rows(levels(kk$生活主題)[3], cumsum(table(kk$生活主題))[[2]]+1, cumsum(table(kk$生活主題))[[3]])%>%
+  group_rows(levels(kk$生活主題)[4], cumsum(table(kk$生活主題))[[3]]+1, cumsum(table(kk$生活主題))[[4]])%>%
+  group_rows(levels(kk$生活主題)[5], cumsum(table(kk$生活主題))[[4]]+1, cumsum(table(kk$生活主題))[[5]])%>%
+  group_rows(levels(kk$生活主題)[6], cumsum(table(kk$生活主題))[[5]]+1, cumsum(table(kk$生活主題))[[6]])%>%
+  group_rows(levels(kk$生活主題)[7], cumsum(table(kk$生活主題))[[6]]+1, cumsum(table(kk$生活主題))[[7]])%>%
+  group_rows(levels(kk$生活主題)[8], cumsum(table(kk$生活主題))[[7]]+1, cumsum(table(kk$生活主題))[[8]])
+
+yn.prepost.compare.plot(res21, "生活主題生是非答對率之前後測結果比較（超商n=75 vs. 早餐店n=17 vs. 家裡n=17）", state=5)+
+  facet_grid(cols=vars(生活主題), scales = "free", space = "free")
+```
+
+## **10-4 覺察類生是非前後測答對率（超商n=75 vs. 早餐店n=17 vs. 家裡n=17）**
+```{r, fig.height=5, fig.width=10,warning=F}
+kk<-yn_life.prepost.compare.table(Cdat1_yn%>%filter(C711&(Cfat.bf|Cnofat.bf)), Cdat2_yn%>%filter(C711&(Cfat.bf|Cnofat.bf)), 
+                             Cdat1_yn%>%filter(Cbf&(Cfat.bf|Cnofat.bf)), Cdat2_yn%>%filter(Cbf&(Cfat.bf|Cnofat.bf)), 
+                             data_c1=Cdat1_yn%>%filter(Chome&(Cfat.bf|Cnofat.bf)),
+                             data_c2=Cdat2_yn%>%filter(Chome&(Cfat.bf|Cnofat.bf)),state=5)%>%
+  filter(覺察==1)%>%dplyr::select(!c("知識性質","生活主題","覺察"))
+
+colnames(kk)<-c("","","平均答對率","標準差","平均答對率","標準差","t統計量","p-value","檢定結果")
+
+
+kk[,7]<-kk[,7]%>%as.numeric%>%round(digits=3)
+
+kk[,8]<-str_c(kk[,8]%>%as.numeric%>%round(digits=3),cut(kk[,8]%>%as.numeric, breaks=c(0,0.001,0.01,0.05,1),labels=c("***","**","*","")))
+
+kk%>%kable("html",escape = F,booktabs = TRUE, digits=c(0,0,3,2,3,2,3,3,3), caption="10-4 覺察類生是非前後測答對率（超商n=75 vs. 早餐店n=17 vs. 家裡n=17）")%>%   
+  kable_styling(c("striped", "bordered"))%>%
+  add_header_above(c(" " = 2, "前測" = 2, "後測" = 2,"前後測成對t檢定" = 3))%>%
+  column_spec(1, bold = T)%>%
+  collapse_rows(columns = 1)%>%
+  group_rows("覺察", 1, dim(kk)[1])
+
+yn.prepost.compare.plot(res21[res21$覺察==1,], "覺察類生是非答對率之前後測結果比較（超商n=75 vs. 早餐店n=17 vs. 家裡n=17）", state=5)
+```
+
+## **10-5 計算全部人/超商/早餐店/家裡彙整表格（分成生是非、技是非兩種情形）**
+
+```{r}
+mean_score<-matrix(NA,4,12)
+rownames(mean_score)<-c("全部人 (n=109)","超商 (n=75)","早餐店 (n=17)","家裡 (n=17)")
+colnames(mean_score)<-rep(c("平均答對率","標準差","平均答對率","標準差","t統計量","p-value"),2)
+
+mean_score[1,]<-mean_table(Cdat1_yn, Cdat2_yn)
+mean_score[2,]<-mean_table(Cdat1_yn%>%filter(C711&(Cfat.bf|Cnofat.bf)), Cdat2_yn%>%filter(C711&(Cfat.bf|Cnofat.bf)))
+mean_score[3,]<-mean_table(Cdat1_yn%>%filter(Cbf&(Cfat.bf|Cnofat.bf)), Cdat2_yn%>%filter(Cbf&(Cfat.bf|Cnofat.bf)))
+mean_score[4,]<-mean_table(Cdat1_yn%>%filter(Chome&(Cfat.bf|Cnofat.bf)), Cdat2_yn%>%filter(Chome&(Cfat.bf|Cnofat.bf)))
+
+mean_score[,6]<-str_c(mean_score[,6]%>%as.numeric()%>%round(digits=3),cut(mean_score[,6]%>%as.numeric(), breaks=c(0,0.001,0.01,0.05,1),labels=c("***","**","*","")))
+
+mean_score[,12]<-str_c(mean_score[,12]%>%as.numeric()%>%round(digits=3),cut(mean_score[,12]%>%as.numeric(), breaks=c(0,0.001,0.01,0.05,1),labels=c("***","**","*","")))
+
+mean_score%>%kableExtra::kable("html",escape = F,booktabs = TRUE, caption="10-5 計算全部人/超商/早餐店/家裡彙整表格（分成生是非、技是非兩種情形）")%>%
+  kable_styling(c("striped", "bordered"))%>%
+  add_header_above(c(" " = 1, "前測" = 2, "後測" = 2, "前後測成對t檢定" = 2,  "前測" = 2, "後測" = 2, "前後測成對t檢定" = 2))%>%
+  add_header_above(c(" " = 1, "生是非" = 6, "技是非" = 6))%>%
+  column_spec(1, bold = T)
+
+#write.xlsx(mean_score, rowNames=T,startCol=1,"C:/Users/h2407/OneDrive/文件/1121/師培中心分析案/報表資料檔/生是非與技是非的整體平均.xlsx")
+```
+
+### **10-5-1 全部生是非、知識性質及覺察類是非題彙整表格（超商n=75 vs. 早餐店n=17 vs. 家裡n=17）**
+```{r}
+kk<-mean_table_all2(Cdat1_yn%>%filter(C711&(Cfat.bf|Cnofat.bf)), Cdat2_yn%>%filter(C711&(Cfat.bf|Cnofat.bf)),
+               Cdat1_yn%>%filter(Cbf&(Cfat.bf|Cnofat.bf)), Cdat2_yn%>%filter(Cbf&(Cfat.bf|Cnofat.bf)), 
+               state=5,
+               data_c1 = Cdat1_yn%>%filter(Chome&(Cfat.bf|Cnofat.bf)), 
+               data_c2  = Cdat2_yn%>%filter(Chome&(Cfat.bf|Cnofat.bf)))
+
+#kk<-mean_table_all(Cdat1_yn%>%filter(Cfat), Cdat2_yn%>%filter(Cfat),Cdat1_yn%>%filter(!Cfat), Cdat2_yn%>%filter(!Cfat), state=2)
+
+kk[[1]]%>%kableExtra::kable("html",escape = F,booktabs = TRUE,digits=c(0,0,3,2,3,2,3,3,3,3,3,3,3,3,3),caption="10-5-1 全部生是非、知識性質及覺察類是非題彙整表格（超商n=75 vs. 早餐店n=17 vs. 家裡n=17）")%>%
+  kable_styling(c("striped", "bordered"))%>%
+  add_header_above(c(" " = 2, "前測" = 2, "後測" = 2,"前後測成對t檢定" = 3, "三組早餐地點anova檢定 (進步量)"=2, "三組早餐地點anova檢定 (前測)"=2, "三組早餐地點anova檢定 (後測)"=2))%>%
+  column_spec(1, bold = T)%>%
+  collapse_rows(columns = c(1,10:15))
+```
+
+### **10-5-2 三組早餐地點的全部生是非、知識性質及覺察類是非題的事後檢定（超商n=75 vs. 早餐店n=17 vs. 家裡n=17）**
+
+```{r, warning=F}
+kk<-mean_table_all2_pair(Cdat1_yn%>%filter(C711&(Cfat.bf|Cnofat.bf)), Cdat2_yn%>%filter(C711&(Cfat.bf|Cnofat.bf)),
+               Cdat1_yn%>%filter(Cbf&(Cfat.bf|Cnofat.bf)), Cdat2_yn%>%filter(Cbf&(Cfat.bf|Cnofat.bf)), 
+               state=5,
+               data_c1 = Cdat1_yn%>%filter(Chome&(Cfat.bf|Cnofat.bf)), 
+               data_c2  = Cdat2_yn%>%filter(Chome&(Cfat.bf|Cnofat.bf)))
+
+kk[[1]]%>%kableExtra::kable("html",escape = F,booktabs = TRUE,digits=c(0,3,3,3,3,0,3,3,3),caption="10-5-2 三組早餐地點的全部生是非、知識性質及覺察類是非題的事後檢定（超商n=75 vs. 早餐店n=17 vs. 家裡n=17）")%>%
+  kable_styling(c("striped", "bordered"))%>%
+  add_header_above(c(" " = 1, "三組早餐地點anova檢定(進步量)" = 2, "三組早餐地點Kruskal-Wallis檢定(進步量)" = 2, "事後檢定(進步量)" = 4))%>%
+  column_spec(c(1,6), bold = T)%>%
+  collapse_rows(columns = c(1,2,3,4,5))
+
+```
+
+### **10-5-3 全部生是非、知識性質及覺察類是非題盒形圖（超商n=75 vs. 早餐店n=17 vs. 家裡n=17）**
+
+```{r, fig.height=5, fig.width=13,warning=F}
+yn.prepost.compare.boxplot(Cdat1_yn%>%filter(C711&(Cfat.bf|Cnofat.bf)),
+                           Cdat2_yn%>%filter(C711&(Cfat.bf|Cnofat.bf)),
+                           Cdat1_yn%>%filter(Cbf&(Cfat.bf|Cnofat.bf)),
+                           Cdat2_yn%>%filter(Cbf&(Cfat.bf|Cnofat.bf)), 
+                           state=5,
+                           data_c1 = Cdat1_yn%>%filter(Chome&(Cfat.bf|Cnofat.bf)), 
+                           data_c2  = Cdat2_yn%>%filter(Chome&(Cfat.bf|Cnofat.bf)), title="全部生是非、知識性質及覺察類是非題盒形圖（早餐店n=17 vs. 超商n=75 vs. 家裡n=17）")
+```
+
+```{r, fig.width=10, fig.height=5.5}
+data_a1=Cdat1_yn%>%filter(C711&(Cfat.bf|Cnofat.bf))
+data_a2=Cdat2_yn%>%filter(C711&(Cfat.bf|Cnofat.bf))
+data_b1=Cdat1_yn%>%filter(Cbf&(Cfat.bf|Cnofat.bf))
+data_b2=Cdat2_yn%>%filter(Cbf&(Cfat.bf|Cnofat.bf))
+state=5
+data_c1=Cdat1_yn%>%filter(Chome&(Cfat.bf|Cnofat.bf))
+data_c2=Cdat2_yn%>%filter(Chome&(Cfat.bf|Cnofat.bf))
+res<-list()
+res[[1]]<-list(data_a1, data_a2)
+res[[2]]<-list(data_b1, data_b2)
+res[[3]]<-list(data_c1, data_c2)
+kk2<-c("超商","傳統早餐店","家裡")
+
+ansrate<-function(ques){
+
+    ansrate<-list()
+    for(i in 1:2){
+      ansrate[[i]]<-list()
+      for(j in 1:length(kk2)){
+        ansrate[[i]][[j]]<-rowMeans(sapply(ques,function(ii) (res[[j]][[i]][[ii]]%>%as.numeric()==ans[[ii]]%>%as.numeric())))
+      }
+    }
+    
+    ansrate0<-data.frame(pre=ansrate[[1]]%>%unlist(),post=ansrate[[2]]%>%unlist(),
+               type=sapply(1:length(kk2), function(i) rep(kk2[i],dim(res[[i]][[1]])[1]))%>%unlist())
+    
+    return(ansrate0)
+}
+
+dat<-list()
+dat[[1]]<-ansrate(names(ans1))
+dat[[2]]<-ansrate(names(ans1)[typee$know==levels(typee$know)[1]])
+dat[[3]]<-ansrate(names(ans1)[typee$know==levels(typee$know)[2]])
+dat[[4]]<-ansrate(names(ans1)[typee$know==levels(typee$know)[3]])
+dat[[5]]<-ansrate(names(ans1)[typee$sense==1])
+  
+datt<-rbind(dat[[1]], dat[[2]], dat[[3]], dat[[4]], dat[[5]])
+datt$group<-rep(c("全部生是非","知識","推論","計算","覺察"), each=109)
+
+ggplot(datt, aes(x=pre))+
+  geom_histogram()+
+  facet_grid(group~type)
+
+ggplot(datt, aes(x=post))+
+  geom_histogram()+
+  facet_grid(group~type)
+
+
+```
+
+# **11. 迴歸分析**
+```{r}
+school<-factor(Cdat1_yn$班級)
+levels(school)<-c(rep("和平",6), rep("桃農",2),rep("錦和",2))
+
+reg_data<-data.frame(ID=Cdat1_yn$ID,流水號=Cdat1_yn$流水號,
+                     前測生是非得分=Cdat1_yn$生是非得分, 前測技是非得分=Cdat1_yn$技是非得分,
+                     前測總得分=Cdat1_yn$總得分,
+                     後測生是非得分=Cdat2_yn$生是非得分, 後測技是非得分=Cdat2_yn$技是非得分,
+                     後測總得分=Cdat2_yn$總得分,
+                     Cdat1_yn.st[,7:36], Cdat2_yn.st[,7:36],
+                     性別=ifelse(Cboy,"男","女")%>%as.factor(),
+                     教育程度=ifelse(Cdat1_yn$班級%in%c("901.0","902.0","903.0","904.0","905.0","906.0","國中"),"國中","高中")%>%as.factor(),
+                     有無肥胖=ifelse(Cfat, "有", ifelse(Cnofat,"無",NA)),
+                     有無早餐肥胖=ifelse(Cfat.bf, "有", ifelse(Cnofat.bf,"無",NA)),
+                     早餐地點=ifelse(C711,"超商",ifelse(Cbf,"早餐店", ifelse(Chome,"家裡",NA))),
+                     學校=school)
+
+# reg_data%>%filter(學校=="桃農")%>%summarise(mean(後測生是非得分))
+
+# reg_data%>%filter(教育程度=="高中")%>%summarise(mean(後測生是非得分))
+
+```
+
+## **11-1-1 後測生是非得分（只看性別、教育程度）**
+```{r}
+fit1<-lm(後測生是非得分~前測生是非得分+性別*教育程度, data=reg_data)
+
+summary(fit1)
+```
+
+## **11-1-2 後測生是非得分**
+```{r echo = T, results = 'hide'}
+fit1.1<-lm(後測生是非得分~前測生是非得分+性別*學校*教育程度*有無肥胖*有無早餐肥胖*早餐地點, data=reg_data%>%filter(!is.na(有無早餐肥胖)))
+
+summary(fit1.1)
+
+fit1.1.a<-stepAIC(fit1.1, direction="both")
+```
+
+```{r}
+summary(fit1.1.a)
+```
+## **11-1-3 後測生是非得分（國高中分開建模，全部變數均考慮）**
+```{r echo = T, results = 'hide'}
+# fit1.2<-lm(後測生是非得分~前測生是非得分+性別*學校*有無肥胖*有無早餐肥胖*早餐地點, data=reg_data%>%filter(!is.na(有無早餐肥胖)))
+# 
+# fit1.2.a<-stepAIC(fit1.2, direction="both")
+
+fit1.2.ju<-lm(後測生是非得分~前測生是非得分+性別*學校*有無肥胖*有無早餐肥胖*早餐地點, data=reg_data%>%filter(!is.na(有無早餐肥胖))%>%filter(教育程度=="國中"))
+
+fit1.2.ju.a<-stepAIC(fit1.2.ju, direction="both")
+
+fit1.2.se<-lm(後測生是非得分~前測生是非得分+性別*學校*有無肥胖*有無早餐肥胖*早餐地點, data=reg_data%>%filter(!is.na(有無早餐肥胖))%>%filter(教育程度=="高中"))
+
+fit1.2.se.a<-stepAIC(fit1.2.se, direction="both")
+```
+
+```{r}
+summary(fit1.2.ju.a)
+summary(fit1.2.se.a)
+
+#summary(aov(fit1.2.ju.a))
+
+# pred_data<-data.frame(前測生是非得分=0, 學校=rep(c("錦和","和平"),each=12),有無肥胖=rep(c("有","無"),each=6),有無早餐肥胖=rep(c("有","無"),each=3),早餐地點=rep(c("超商","早餐店","家裡")))
+# pred_data$pred<-predict(fit1.2.ju.a, pred_data)%>%round(digits=1)
+```
+
+## **11-1-4 後測生是非得分（排除性別、學校）**
+```{r echo = T, results = 'hide'}
+fit1.3.ju<-lm(後測生是非得分~前測生是非得分+有無肥胖*有無早餐肥胖*早餐地點, data=reg_data%>%filter(!is.na(有無早餐肥胖))%>%filter(教育程度=="國中"))
+
+fit1.3.ju.a<-stepAIC(fit1.3.ju, direction="both")
+
+fit1.3.se<-lm(後測生是非得分~前測生是非得分+有無肥胖*有無早餐肥胖*早餐地點, data=reg_data%>%filter(!is.na(有無早餐肥胖))%>%filter(教育程度=="高中"))
+
+fit1.3.se.a<-stepAIC(fit1.3.se, direction="both")
+
+```
+
+```{r}
+summary(fit1.3.ju.a)
+summary(fit1.3.se.a)
+```
+
+## **11-1-5 生是非得分"進步量"（國高中分開建模，全部變數均考慮）**
+```{r echo = T, results = 'hide'}
+
+fit1.4.ju<-lm((後測生是非得分-前測生是非得分)~性別*學校*有無肥胖*有無早餐肥胖*早餐地點, data=reg_data%>%filter(!is.na(有無早餐肥胖))%>%filter(教育程度=="國中"))
+
+fit1.4.ju.a<-stepAIC(fit1.4.ju, direction="both")
+
+fit1.4.se<-lm((後測生是非得分-前測生是非得分)~性別*學校*有無肥胖*有無早餐肥胖*早餐地點, data=reg_data%>%filter(!is.na(有無早餐肥胖))%>%filter(教育程度=="高中"))
+
+fit1.4.se.a<-stepAIC(fit1.4.se, direction="both")
+```
+
+```{r}
+summary(fit1.4.ju.a)
+summary(fit1.4.se.a)
+#fit1.4.se.a$coefficients[18]<-0
+
+# pred_data<-data.frame(學校=rep(c("錦和","桃農"),each=12*2),有無肥胖=rep(c("有","無"),each=6*2),有無早餐肥胖=rep(c("有","無"),each=3*2),早餐地點=rep(c("超商","早餐店","家裡"),each=2), 性別=rep(c("男","女")))
+# pred_data$pred<-predict(fit1.4.se.a, pred_data)%>%round(digits=1)
+```
+
+## **11-2-1 後測總分（只看性別、教育程度）**
+```{r echo = T, results = 'hide'}
+fit2<-lm(後測總得分~前測總得分+性別*教育程度, data=reg_data)
+
+summary(fit2)
+
+fit2.1<-stepAIC(fit2, direction="both")
+```
+
+```{r}
+summary(fit2.1)
+```
+
+## **11-2-2 後測總分**
+```{r echo = T, results = 'hide'}
+fit2.1<-lm(後測總得分~前測總得分+性別*學校*教育程度*有無肥胖*有無早餐肥胖*早餐地點, data=reg_data%>%filter(!is.na(有無早餐肥胖)))
+
+summary(fit2.1)
+
+fit2.1.a<-stepAIC(fit2.1, direction="both")
+```
+
+```{r}
+summary(fit2.1.a)
+# 
+# library(olsrr)
+# ols_step_both_adj_r2(fit2.1)
+# ols_step_all_possible(fit2.1)
+```
+
+## **11-2-3 後測總得分（國高中分開建模，全部變數均考慮）**
+```{r echo = T, results = 'hide'}
+# fit2.2<-lm(後測總得分~前測總得分+性別*學校*有無肥胖*有無早餐肥胖*早餐地點, data=reg_data%>%filter(!is.na(有無早餐肥胖)))
+# 
+# fit2.2.a<-stepAIC(fit2.2, direction="both")
+
+#fit2.2.ju<-lm((後測總得分-前測總得分)~性別*學校*有無肥胖*有無早餐肥胖*早餐地點, data=reg_data%>%filter(!is.na(有無早餐肥胖))%>%filter(教育程度=="國中"))
+
+fit2.2.ju<-lm(後測總得分~前測總得分+性別*學校*有無肥胖*有無早餐肥胖*早餐地點, data=reg_data%>%filter(!is.na(有無早餐肥胖))%>%filter(教育程度=="國中"))
+
+fit2.2.ju.a<-stepAIC(fit2.2.ju, direction="both")
+
+fit2.2.se<-lm(後測總得分~前測總得分+性別*學校*有無肥胖*有無早餐肥胖*早餐地點, data=reg_data%>%filter(!is.na(有無早餐肥胖))%>%filter(教育程度=="高中"))
+
+fit2.2.se.a<-stepAIC(fit2.2.se, direction="both")
+```
+
+```{r}
+summary(fit2.2.ju.a)
+summary(fit2.2.se.a)
+
+# pred_data<-data.frame(前測總得分=0, 學校=rep(c("錦和","桃農"),each=12*2),有無肥胖=rep(c("有","無"),each=6*2),有無早餐肥胖=rep(c("有","無"),each=3*2),早餐地點=rep(c("超商","早餐店","家裡"),each=2), 性別=rep(c("男","女")))
+# pred_data$pred<-predict(fit2.2.se.a, pred_data)%>%round(digits=1)
+```
+
+## **11-3-1 後測技是非得分**
+```{r echo = T, results = 'hide'}
+
+fit3.1<-lm(後測技是非得分~前測技是非得分+性別*學校*教育程度*有無肥胖*有無早餐肥胖*早餐地點, data=reg_data%>%filter(!is.na(有無早餐肥胖)))
+
+summary(fit3.1)
+
+fit3.1.a<-stepAIC(fit3.1, direction="both")
+```
+
+```{r}
+summary(fit3.1.a)
+
+```
+
+## **11-3-2 後測技是非得分（國高中分開建模，全部變數均考慮）**
+```{r echo = T, results = 'hide'}
+
+fit3.2.ju<-lm(後測技是非得分~前測技是非得分+性別*學校*有無肥胖*有無早餐肥胖*早餐地點, data=reg_data%>%filter(!is.na(有無早餐肥胖))%>%filter(教育程度=="國中"))
+
+fit3.2.ju.a<-stepAIC(fit3.2.ju, direction="both")
+
+fit3.2.se<-lm(後測技是非得分~前測技是非得分+性別*學校*有無肥胖*有無早餐肥胖*早餐地點, data=reg_data%>%filter(!is.na(有無早餐肥胖))%>%filter(教育程度=="高中"))
+
+fit3.2.se.a<-stepAIC(fit3.2.se, direction="both")
+```
+
+```{r}
+summary(fit3.2.ju.a)
+summary(fit3.2.se.a)
+
+fit3.2.se.b<-lm(後測技是非得分 ~ 前測技是非得分 +
+                  性別 + 學校 + 有無肥胖 + 有無早餐肥胖 + 
+    早餐地點 + 性別:有無早餐肥胖 + 學校:早餐地點 + 
+    有無肥胖:早餐地點, data=reg_data%>%filter(!is.na(有無早餐肥胖))%>%filter(教育程度=="高中"))
+summary(fit3.2.se.b)
+
+# pred_data<-data.frame(前測技是非得分=0,
+#                       有無早餐肥胖=rep(c("有","無"),each=3),
+#                       早餐地點=rep(c("超商","早餐店","家裡")))
+# pred_data$pred<-predict(fit3.2.ju.a, pred_data)%>%round(digits=1)
+# 
+# 
+# pred_data<-data.frame(前測技是非得分=0,
+#                       學校=rep(c("錦和","桃農"),each=12*2),
+#                       有無肥胖=rep(c("有","無"),each=6*2),
+#                       有無早餐肥胖=rep(c("有","無"),each=3*2),
+#                       早餐地點=rep(c("超商","早餐店","家裡"),each=2), 性別=rep(c("男","女")))
+# pred_data$pred<-predict(fit3.2.se.b,pred_data)%>%round(digits=1)
+```
+
+## **11-3-3 後測技是非得分（排除性別、學校）**
+```{r echo = T, results = 'hide'}
+fit3.3.ju<-lm(後測技是非得分~前測技是非得分+有無肥胖*有無早餐肥胖*早餐地點, data=reg_data%>%filter(!is.na(有無早餐肥胖))%>%filter(教育程度=="國中"))
+
+fit3.3.ju.a<-stepAIC(fit3.3.ju, direction="both")
+
+fit3.3.se<-lm(後測技是非得分~前測技是非得分+有無肥胖*有無早餐肥胖*早餐地點, data=reg_data%>%filter(!is.na(有無早餐肥胖))%>%filter(教育程度=="高中"))
+
+fit3.3.se.a<-stepAIC(fit3.3.se, direction="both")
+
+```
+
+```{r}
+summary(fit3.3.ju.a)
+summary(fit3.3.se.a)
+```
+
+## **11-3-4 技是非得分"進步量"（國高中分開建模，全部變數均考慮）**
+```{r echo = T, results = 'hide'}
+
+fit3.4.ju<-lm((後測技是非得分-前測技是非得分)~性別*學校*有無肥胖*有無早餐肥胖*早餐地點, data=reg_data%>%filter(!is.na(有無早餐肥胖))%>%filter(教育程度=="國中"))
+
+fit3.4.ju.a<-stepAIC(fit3.4.ju, direction="both")
+
+fit3.4.se<-lm((後測技是非得分-前測技是非得分)~性別*學校*有無肥胖*有無早餐肥胖*早餐地點, data=reg_data%>%filter(!is.na(有無早餐肥胖))%>%filter(教育程度=="高中"))
+
+fit3.4.se.a<-stepAIC(fit3.4.se, direction="both")
+```
+
+```{r}
+summary(fit3.4.ju.a)
+summary(fit3.4.se.a)
+
+# pred_data<-data.frame(學校=rep(c("錦和","和平"),each=12*2),有無肥胖=rep(c("有","無"),each=6*2),有無早餐肥胖=rep(c("有","無"),each=3*2),早餐地點=rep(c("超商","早餐店","家裡"),each=2), 性別=rep(c("男","女")))
+# pred_data$pred<-predict(fit3.4.ju.a, pred_data)%>%round(digits=1)
+```
+
+```{r}
+#reg_data%>%filter(早餐地點=="家裡"& !(is.na(有無早餐肥胖)))%>%dplyr::group_by(有無早餐肥胖)%>%dplyr::summarise(人數=n(),前測生是非平均=mean(前測生是非得分),後測生是非平均=mean(後測生是非得分),生是非平均分數進步量=mean(後測生是非得分-前測生是非得分),前測技是非平均=mean(前測技是非得分),後側技是非平均=mean(後測技是非得分),技是非平均分數進步量=mean(後測技是非得分-前測技是非得分))
+
+#reg_data%>%filter(早餐地點=="早餐店"& !(is.na(有無早餐肥胖)))%>%dplyr::summarise(人數=n(),前測生是非平均=mean(前測生是非得分),後測生是非平均=mean(後測生是非得分),生是非平均分數進步量=mean(後測生是非得分-前測生是非得分),前測技是非平均=mean(前測技是非得分),後側技是非平均=mean(後測技是非得分),技是非平均分數進步量=mean(後測技是非得分-前測技是非得分))
+
+
+
+```
+
+
+
